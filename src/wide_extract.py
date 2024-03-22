@@ -56,7 +56,7 @@ def process_stock_data(folder_path, output_folder, first_stock_code=None, debug_
     return df_wide
 
 if __name__ == "__main__":
-    folder_path = "japan-all-stock-prices/"
+    folder_path = "/root/src/raw_data/japan-all-stock-prices/"
     output_folder = "ProcessedData"
     first_stock_code = "7203"  # トヨタ自動車のSCコード
     debug_mode = True

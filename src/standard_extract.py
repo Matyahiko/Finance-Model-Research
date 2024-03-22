@@ -43,7 +43,7 @@ def process_stock_data(folder_path, output_folder, stock_code=None, debug_mode=F
     return df_total, filtered_data if stock_code else None
 
 if __name__ == "__main__":
-    folder_path = "japan-all-stock-prices/"
+    folder_path = "/root/src/raw_data/japan-all-stock-prices/"
     output_folder = "ProcessedData"
     stock_code = "7203"
     debug_mode = True
