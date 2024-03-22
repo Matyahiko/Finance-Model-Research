@@ -43,6 +43,7 @@ python-dotenv = "^1.0.1"
 mplfinance = "^0.12.10b0"
 xgboost = "^2.0.3"
 schedule = "^1.2.1"
+pypdf = "^4.1.0"
 
 
 [[tool.poetry.source]]
