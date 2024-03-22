@@ -8,7 +8,7 @@ from pypdf import PdfReader
 from tqdm import tqdm
 
 # ログの設定
-logging.basicConfig(filename='download.log', level=logging.INFO)
+logging.basicConfig(filename="/root/src/log/download.log", level=logging.INFO)
 
 class TdnetDownloader:
     def __init__(self, max_retries=5):
@@ -58,7 +58,7 @@ class TdnetDownloader:
     def process_downloads(self, data):
         """PDFファイルのダウンロードと保存を処理する"""
         total = len(data)
-        progress_bar = tqdm(total=total, desc='Downloading PDFs', unit='file')
+        progress_bar = tqdm(total=total, desc="Downloading PDFs", unit="file")
         failed_downloads = []
 
         for item in data:
@@ -70,8 +70,8 @@ class TdnetDownloader:
                     try:
                         pdf_content = self.download_pdf(item["document_url"])
                         date = item["pubdate"].split(" ")[0]
-                        file_name = f"{date}_{item['company_code']}.pdf"
-                        file_path = f"../nas/tdnet/{file_name}"
+                        file_name = f"{date}_{item[['company_code']]}.pdf"
+                        file_path = f"/root/src/raw_data/timely-disclosure/{file_name}"
 
                         self.save_pdf(pdf_content, file_path)
 
@@ -100,7 +100,7 @@ class TdnetDownloader:
             logging.info("No failed downloads to retry.")
             return
 
-        self.save_data(failed_downloads, "path_to_failed_downloads.json")
+        self.save_data(failed_downloads, "/root/src/log/path_to_failed_downloads.json")
         self.process_downloads(failed_downloads)
 
     def run(self):
@@ -111,7 +111,7 @@ class TdnetDownloader:
 
         data = self.fetch_data(url)
         extracted_data = self.extract_info(data)
-        self.save_data(extracted_data, "path_to_extracted_data.json")
+        self.save_data(extracted_data, "/root/src/log/path_to_extracted_data.json")
 
         failed_downloads = self.process_downloads(extracted_data)
         self.retry_failed_downloads(failed_downloads)
