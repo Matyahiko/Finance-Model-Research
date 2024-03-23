@@ -54,7 +54,7 @@ def save_stock_prices(start_date, end_date):
         if response.status_code == 404:
                 print(f"No data available for {date_str}, skipping.")
         elif response.status_code == 200:
-            with open(f"japan-all-stock-prices/{date_str}.csv", "wb") as f:
+            with open(f"raw_data/japan-all-stock-prices/{date_str}.csv", "wb") as f:
                 f.write(response.content)  # ここを response.data から response.content に変更
                 print(f"Saved: japan-all-stock-prices-{date_str}.csv")
         else:
@@ -64,8 +64,8 @@ def save_stock_prices(start_date, end_date):
         current_date += timedelta(days=1)
 
 # 開始日と終了日を指定
-start_date = "20240318"
-end_date = "20240322"  # 例としての終了日
+start_date = "20240322"
+end_date = "20240323"  
 
 # 指定された期間で株価データを取得
 save_stock_prices(start_date, end_date)

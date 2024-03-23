@@ -38,7 +38,7 @@ def save_today_stock_prices():
     if response.status_code == 404:
         print(f"No data available for {today}, skipping.")
     elif response.status_code == 200:
-        with open(f"japan-all-stock-prices/{today}.csv", "wb") as f:
+        with open(f"raw_data/japan-all-stock-prices/{today}.csv", "wb") as f:
             f.write(response.content)
         print(f"Saved: japan-all-stock-prices-{today}.csv")
     else:
