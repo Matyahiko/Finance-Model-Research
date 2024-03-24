@@ -4,27 +4,22 @@ import random
 import time
 import os
 import csv
+import json
 import traceback
 
 def debug_log(message):
     print(f"[DEBUG] {message}")
-    
 
 # 不正なファイル名文字を削除/置換する関数
 def clean_title(title):
     invalid_chars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*']
     for char in invalid_chars:
-        title = title.replace(char, '_')  
+        title = title.replace(char, '_')
     return title
 
-
-
-def read_rss_list_from_csv(csv_file):
-    with open(csv_file, mode="r", encoding="utf-8") as file:
-        reader = csv.reader(file)
-        # ヘッダーラインをスキップ
-        next(reader)
-        rss_list = [row for row in reader]
+def read_rss_list_from_json(json_file):
+    with open(json_file, mode="r", encoding="utf-8") as file:
+        rss_list = json.load(file)
     return rss_list
 
 def random_sleep(min_sec=5, max_sec=15):
@@ -47,14 +42,16 @@ def save_article_to_tsv(file_path, title, date, link, text):
         writer.writerow([title, date, link, text])
 
 if __name__ == "__main__":
-    rss_list = read_rss_list_from_csv("rss.csv")
+    rss_list = read_rss_list_from_json("/root/src/download_script/RSS.json")
     debug_log(f"RSS List loaded: {rss_list}")
 
-    for source_name, feed_url in rss_list:
+    for rss_item in rss_list:
+        source_name = rss_item["name"]
+        feed_url = rss_item["url"]
         debug_log(f"Processing RSS feed from {source_name}")
         
         # ソースごとのディレクトリを作成
-        source_dir = os.path.join("../nas/newsdata", source_name)
+        source_dir = os.path.join("raw_data/news", source_name)
         if not os.path.exists(source_dir):
             os.makedirs(source_dir)
 
@@ -69,7 +66,7 @@ if __name__ == "__main__":
             cleaned_title = clean_title(title)  # タイトルをクリーンアップ
             date = entry.date.replace(':', '-')  # ファイル名として適切でない文字を修正
             link = entry.link
-
+            
             # 新しいTSVファイルパスを設定
             tsv_file_path = os.path.join(source_dir, f"{cleaned_title}.tsv")
             
@@ -86,11 +83,11 @@ if __name__ == "__main__":
 
             try:
                 text = fetch_article_text(link)
-                debug_log(f"First 100 chars of the text: {text[:100]}")  
+                debug_log(f"First 100 chars of the text: {text[:100]}")
                 save_article_to_tsv(tsv_file_path, title, date, link, text)
                 debug_log(f"Saved article to {tsv_file_path}")
             except Exception as e:
                 debug_log(f"Failed to download article from {link}. Error: {e}")
                 debug_log(traceback.format_exc())  # Print full error traceback
-
+            
             random_sleep()
