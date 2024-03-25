@@ -1,20 +1,16 @@
-from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer, AutoModel
-import os
 
-# 保存先のディレクトリを指定
-save_directory = "/root/src/models/"
+model_name = "intfloat/e5-mistral-7b-instruct"
+output_dir = "models/e5-mistral-7b-instruct"
 
-# 保存先のディレクトリが存在しない場合は作成
-os.makedirs(save_directory, exist_ok=True)
+# Save tokenizer
+tokenizer = AutoTokenizer.from_pretrained(model_name)  
+tokenizer.save_pretrained(output_dir)
 
-# モデルをダウンロードして保存
-#model = SentenceTransformer("intfloat/multilingual-e5-large", cache_folder=save_directory)
+# Save model
+model = AutoModel.from_pretrained(model_name)
+model.save_pretrained(output_dir)
 
-# トークナイザーをダウンロードして保存
-tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-mistral-7b-instruct", cache_dir=save_directory)
-tokenizer.save_pretrained(save_directory)
-
-# モデルをダウンロードして保存
-model = AutoModel.from_pretrained("intfloat/e5-mistral-7b-instruct", cache_dir=save_directory)
-model.save_pretrained(save_directory)
+# Now you can load from the saved directory
+tokenizer = AutoTokenizer.from_pretrained(output_dir)  
+model = AutoModel.from_pretrained(output_dir)
