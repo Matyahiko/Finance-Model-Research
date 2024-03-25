@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.1.0-devel-ubuntu22.04
+FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
 USER root
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
@@ -6,12 +6,6 @@ ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ENV http_proxy=$HTTP_PROXY
 ENV https_proxy=$HTTPS_PROXY
-
-# Python, pipのインストール
-RUN apt-get update && apt-get install -y \
-    python3.10   \
-    python3-pip \
-    && rm -rf /var/lib/apt/lists/*
 
 
 RUN mkdir -p /root/src
