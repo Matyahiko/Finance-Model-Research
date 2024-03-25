@@ -26,7 +26,7 @@ class TdnetDownloader:
             {
                 "pubdate": item["pubdate"],
                 "company_code": item["company_code"],
-                "document_url": item["document_url"]
+                "document_url": item["document_url"][len("https://webapi.yanoshin.jp/rd.php?"):]
             } for item in data]
 
     def save_data(self, data, file_path):
@@ -70,7 +70,7 @@ class TdnetDownloader:
                     try:
                         pdf_content = self.download_pdf(item["document_url"])
                         date = item["pubdate"].split(" ")[0]
-                        file_name = f"{date}_{item[['company_code']]}.pdf"
+                        file_name = f"{date}_{item['company_code']}.pdf"
                         file_path = f"/root/src/raw_data/timely-disclosure/{file_name}"
 
                         self.save_pdf(pdf_content, file_path)
