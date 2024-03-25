@@ -64,7 +64,14 @@ if __name__ == "__main__":
         for index, entry in enumerate(feed.entries):
             title = entry.title
             cleaned_title = clean_title(title)  # タイトルをクリーンアップ
-            date = entry.date.replace(':', '-')  # ファイル名として適切でない文字を修正
+            
+            if "published" in entry:
+                date = entry.published.replace(':', '-')
+            elif "updated" in entry:
+                date = entry.updated.replace(':', '-')
+            else:
+                date = ""
+            
             link = entry.link
             
             # 新しいTSVファイルパスを設定
