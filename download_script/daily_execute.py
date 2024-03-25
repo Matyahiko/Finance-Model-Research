@@ -20,4 +20,4 @@ for script in scripts_to_run:
 # メインループ
 while True:
     schedule.run_pending()
-    time.sleep(1)
+    time.sleep(60)
