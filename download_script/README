@@ -1,5 +1,5 @@
-daily.shは先頭にdailyが付くスクリプトをバックグラウンドで実行するスクリプトです。
-daily.shでtmux上で実行されない、デタッチされない。
+定期実行はdaily_execute.pyを利用する
+
 
 # 新規セッション開始
 tmux
