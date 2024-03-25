@@ -65,7 +65,9 @@ def save_stock_prices(start_date, end_date):
         current_date += timedelta(days=1)
 
 # モードを選択
-mode = input("Choose mode: (1) Download data for a specified period, (2) Download data for today: ")
+#mode = input("Choose mode: (1) Download data for a specified period, (2) Download data for today: ")
+
+mode = "2"
 
 if mode == "1":
     # 開始日と終了日を指定
