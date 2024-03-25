@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  Finance:
+  finance:
     ports: 
       - "8090:80"
     build:
