@@ -6,4 +6,5 @@
 *.json
 *.tsv
 *.html
+*.pdf
 models/

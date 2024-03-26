@@ -103,16 +103,23 @@ class TdnetDownloader:
         self.save_data(failed_downloads, "/root/src/log/path_to_failed_downloads.json")
         self.process_downloads(failed_downloads)
 
-    def run(self):
-        """TDnetからデータを取得し、PDFファイルをダウンロードする"""
-        end_date = time.strftime("%Y%m%d")
-        start_date = time.strftime("%Y%m%d", time.localtime(time.time() - 60 * 60 * 24 * 30))
-        url = f"https://webapi.yanoshin.jp/webapi/tdnet/list/{start_date}-{end_date}.json?limit=10000"
+    def run(self, mode="today"):
+        """
+        TDnetからデータを取得し、PDFファイルをダウンロードする
+        mode: "today" - 今日の日付だけダウンロード, "month" - 過去一か月分をダウンロード
+        """
+        if mode == "today":
+            start_date = end_date = time.strftime("%Y%m%d")
+        elif mode == "month":
+            end_date = time.strftime("%Y%m%d")
+            start_date = time.strftime("%Y%m%d", time.localtime(time.time() - 60 * 60 * 24 * 30))
+        else:
+            raise ValueError("Invalid mode. Choose either 'today' or 'month'.")
 
+        url = f"https://webapi.yanoshin.jp/webapi/tdnet/list/{start_date}-{end_date}.json?limit=10000"
         data = self.fetch_data(url)
         extracted_data = self.extract_info(data)
         self.save_data(extracted_data, "/root/src/log/path_to_extracted_data.json")
-
         failed_downloads = self.process_downloads(extracted_data)
         self.retry_failed_downloads(failed_downloads)
 
