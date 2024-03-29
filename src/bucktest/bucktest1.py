@@ -80,8 +80,7 @@ df_pnl = (1+df_rets).cumprod()
 beta = np.corrcoef(spy.pct_change().iloc[2:],df_rets[0].iloc[2:])[0,1]
 print(f"Beta: {beta:.4f}")
 
-# TA-Libのインストールとインポート
-# 注: Google Colabでは事前にTA-Libをインストールする必要があります
+
 
 # TA-Libを使用して移動平均を計算しプロット
 ma50 = talib.SMA(spy,50)
