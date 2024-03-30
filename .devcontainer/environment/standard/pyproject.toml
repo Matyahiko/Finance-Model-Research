@@ -46,6 +46,7 @@ schedule = "^1.2.1"
 pypdf = "^4.1.0"
 feedparser = "^6.0.11"
 newspaper3k = "^0.2.8"
+yfinance = "^0.2.37"
 
 
 [[tool.poetry.source]]
