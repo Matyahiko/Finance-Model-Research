@@ -19,7 +19,7 @@ company_data = {}
 # 各CSVファイルを読み込む
 for file in csv_files:
     file_path = os.path.join(input_folder, file)
-    df = pd.read_csv(file_path, encoding="shift_jis")
+    df = pd.read_csv(file_path, encoding="shift-jis")
     
     # 企業コードごとにデータを分割
     for sc, group in df.groupby("SC"):
@@ -32,14 +32,20 @@ for file in csv_files:
 for sc, df in company_data.items():
     df = df.sort_values("日付")  # 日付で昇順にソート
     
+    # "株価"列を数値に変換し、非数値を NaN に置き換える
+    df["株価"] = pd.to_numeric(df["株価"], errors="coerce")
+    
     for ma in moving_averages:
         column_name = f"移動平均{ma}日"
-        df[column_name] = df["株価"].rolling(window=ma).mean()
+        if df["株価"].notnull().all():
+            df[column_name] = df["株価"].rolling(window=ma).mean()
+        else:
+            print(f"警告: {sc}の株価データに非数値が含まれています。")
     
     # 出力先のファイルパスを作成
     output_file = os.path.join(output_folder, f"{sc}.csv")
     
-    # CSVファイルに保存
-    df.to_csv(output_file, index=False, encoding="shift_jis")
+    # CSVファイルに保存 (UTF-8エンコーディング)
+    df.to_csv(output_file, index=False, encoding="utf-8")
 
 print("処理が完了しました。")
