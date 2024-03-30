@@ -7,4 +7,5 @@
 *.tsv
 *.html
 *.pdf
+*.npy
 models/

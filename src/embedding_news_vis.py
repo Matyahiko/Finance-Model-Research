@@ -65,25 +65,28 @@ def main():
     folder_path = "raw_data/news"
     tsv_files = get_tsv_files_in_directory(folder_path)
     combined_df = pd.concat([pd.read_csv(file, sep="\t", header=0) for file in tsv_files], axis=0)
+    
     ###前処理###
     #ユニークIDを付与
-    combined_df["ID"] = range(1, len(combined_df) + 1) 
+    combined_df["ID"] = range(1, len(combined_df) + 1)
     #重複を削除
     combined_df.drop_duplicates(subset=["Title"], inplace=True)
-    
-    
-    
 
     model = SentenceTransformer("models/intfloat_multilingual-e5-large/")
     combined_df['embeddings'] = combined_df['Text'].apply(lambda text: generate_embeddings(text, model))
-    # print(combined_df['embeddings'].head())
-    # print(combined_df['embeddings'].shape)
-    #埋め込みサイズの確認
-    print(combined_df['embeddings'].iloc[0])
-    print(len(combined_df['embeddings'].iloc[0]))
-    
+
+    # ランダムに1つのニュースを選択
+    random_news = combined_df.sample(1)
+    random_news_tensor = np.array(random_news['embeddings'].iloc[0])
+
+    # 選択したニュースのテンソルを出力
+    print("Selected news tensor:")
+    print(random_news_tensor)
+
+    # テンソルを保存
+    np.save("log/random_news_tensor.npy", random_news_tensor)
+
     plot_embeddings(combined_df)
-    
 
 if __name__ == "__main__":
     main()

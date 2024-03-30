@@ -8,9 +8,9 @@ def run_script(script_name):
 
 # 実行するスクリプトと時間を指定
 scripts_to_run = [
-    {"name": "/root/src/download_script/stock_download.py", "time": "4:00"},
-    {"name": "/root/src/download_script/tdnet_download.py", "time": "3:00"},
-    {"name": "/root/src/download_script/news_download.py", "time": "2:00"}
+    {"name": "download_script/stock_download.py", "time": "04:00"},
+    {"name": "download_script/tdnet_download.py", "time": "03:00"},
+    {"name": "download_script/news_download.py", "time": "02:00"}
 ]
 
 # スケジュールを設定
