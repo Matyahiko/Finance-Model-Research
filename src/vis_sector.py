@@ -44,22 +44,6 @@ for industry, group in grouped:
     plt.savefig(f"fig/cumulative_change_{industry}.png")
     plt.close()
 
-    # 共分散行列を作成
-    cov_matrix = group[cumulative_change_columns].cov()
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(cov_matrix, annot=True, cmap="coolwarm", square=True, cbar_kws={"shrink": .8})
-    plt.title(f"業種: {industry} - 共分散行列")
-    plt.tight_layout()
-    plt.savefig(f"fig/covariance_matrix_{industry}.png")
-    plt.close()
-
-    # 相関係数行列を作成
-    corr_matrix = group[cumulative_change_columns].corr()
-    plt.figure(figsize=(10, 8))
-    sns.heatmap(corr_matrix, annot=True, cmap="coolwarm", square=True, cbar_kws={"shrink": .8})
-    plt.title(f"業種: {industry} - 相関係数行列")
-    plt.tight_layout()
-    plt.savefig(f"fig/correlation_matrix_{industry}.png")
-    plt.close()
-
+    
+    
 print("プロットが完了しました。")
