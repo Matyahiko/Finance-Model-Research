@@ -54,7 +54,7 @@ def parallel_fetch_data(symbols, min_range, min_interval):
 
 if __name__ == "__main__":
     symbols = ["1379", "9984", "6758"]  # 複数の銘柄コードを指定
-    min_range = 61
+    min_range = 3
     min_interval = 5
 
     stock_data = parallel_fetch_data(symbols, min_range, min_interval)
