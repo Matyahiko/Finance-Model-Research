@@ -54,22 +54,28 @@ def parallel_fetch_data(symbols, min_range, min_interval):
 if __name__ == "__main__":
     symbols = ["1379"]  # 複数の銘柄コードを指定
     min_interval = 5
-    min_days = 60  # 最小日数を指定
+    min_days = 55  # 最小日数を指定
     max_days = 360  # 最大日数を指定
     
-    for days in range(min_days, max_days + 1):
-        print(f"\nTesting with {days} days:")
-        stock_data = parallel_fetch_data(symbols, days, min_interval)
-        for symbol, data in stock_data.items():
-            if data is not None:
-                first_date = data['Date'].iloc[0]
-                last_date = data['Date'].iloc[-1]
-                date_range = pd.date_range(start=first_date, end=last_date, freq='D')
-                if len(date_range) == days:
-                    print(f"Date range for {symbol} matches the requested {days} days.")
-                else:
-                    print(f"Date range for {symbol} does not match the requested {days} days.")
-                    break
-            
+for days in range(min_days, max_days + 1):
+    print(f"\nTesting with {days} days:")
+    stock_data = parallel_fetch_data(symbols, days, min_interval)
+    print(stock_data.shape)
+    for symbol, data in stock_data.items():
+        if data is not None:
+            first_date = data['Date'].iloc[0]
+            last_date = data['Date'].iloc[-1]
+            date_range = pd.date_range(start=first_date, end=last_date, freq='D')
+            if len(date_range) == days:
+                print(f"Date range for {symbol} matches the requested {days} days.")
+            else:
+                print(f"Date range for {symbol} does not match the requested {days} days.")
+                break  # ここにbreakを移動
+        else:
+            print(f"No data retrieved for {symbol} with {days} days.")
+            break  # データが取得できなかった場合もbreakを追加
+    else:
+        continue  # すべての銘柄でデータが取得できた場合は次の日数に進む
+    break  # いずれかの銘柄でデータが取得できなかった場合はループを終了            
                     
-        time.sleep(60)  # 待機
+    time.sleep(5)  # 待機
