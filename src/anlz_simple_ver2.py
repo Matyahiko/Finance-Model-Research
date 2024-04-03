@@ -8,6 +8,12 @@ industries = df['業種'].unique()
 print("業種の一覧:")
 print(industries)
 
+#業種ごとの企業数を計算
+industry_counts = df['業種'].value_counts()
+print("\n業種ごとの企業数:")
+print(industry_counts)
+
+
 # 業種の割合を計算
 industry_counts = df['業種'].value_counts()
 industry_percentages = industry_counts / len(df) * 100
