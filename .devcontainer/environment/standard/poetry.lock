@@ -5463,6 +5463,20 @@ files = [
 ]
 
 [[package]]
+name = "yahoo-finance-api2"
+version = "0.0.12"
+description = "Yahooo Finance API package"
+optional = false
+python-versions = "*"
+files = [
+    {file = "yahoo_finance_api2-0.0.12.tar.gz", hash = "sha256:64ce96adfd62cf74506938597039a1372701a974d1a2cf0dec00a3bc8b24a8f3"},
+]
+
+[package.dependencies]
+pyyaml = "*"
+requests = "*"
+
+[[package]]
 name = "yarl"
 version = "1.9.4"
 description = "Yet another URL library"
@@ -5596,4 +5610,4 @@ repair = ["scipy (>=1.6.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "bcb3cb1d81e625829fed1d0be6004368a4ec3c4fbe8590b2877424a1d96ef3ad"
+content-hash = "3709b7ff48e0a9c55ab2d41218229efa48f2f5684d74d43e50b70d75a7a69580"

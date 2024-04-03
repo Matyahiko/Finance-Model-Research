@@ -47,6 +47,7 @@ pypdf = "^4.1.0"
 feedparser = "^6.0.11"
 newspaper3k = "^0.2.8"
 yfinance = "^0.2.37"
+yahoo-finance-api2 = "^0.0.12"
 
 
 [[tool.poetry.source]]
