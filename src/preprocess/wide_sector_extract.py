@@ -2,7 +2,7 @@ import pandas as pd
 import glob
 import os
 
-def process_stock_data(folder_path, output_folder, sector_code, first_stock_code=None, debug_mode=False):
+def process_stock_data(folder_path, output_folder, industry_code, first_stock_code=None, debug_mode=False):
     """
     指定されたフォルダ内の全ての企業ごとのCSVファイルを読み込み、結合したデータフレームを作成し、
     日付を行方向、企業を列方向に配置したデータフレームを作成する。
@@ -27,7 +27,7 @@ def process_stock_data(folder_path, output_folder, sector_code, first_stock_code
         df_total = pd.concat([df_total, df], ignore_index=True)
 
     # 業種コードで絞り込み
-    df_total = df_total[df_total["業種"] == sector_code]
+    df_total = df_total[df_total["業種"] == industry_code]
 
     # "日付"列でdf_totalをソート
     df_total = df_total.sort_values(by="日付", ignore_index=True)
@@ -46,7 +46,7 @@ def process_stock_data(folder_path, output_folder, sector_code, first_stock_code
         df_wide = df_wide[first_stock_columns + other_columns]
 
     # 全データをCSVファイルとして保存
-    output_file = os.path.join(output_folder, f"japan-{sector_code}-stock-prices_wide.csv")
+    output_file = os.path.join(output_folder, f"japan-{industry_code}-stock-prices_wide.csv")
     df_wide.to_csv(output_file, index=True, encoding="utf-8")
 
     if debug_mode == True:
@@ -61,9 +61,9 @@ def process_stock_data(folder_path, output_folder, sector_code, first_stock_code
 if __name__ == "__main__":
     folder_path = "add_feature/"
     output_folder = "ProcessedData"
-    sector_code = "輸送用機器"
+    industry_code = "輸送用機器"
     first_stock_code = "7203"  # トヨタ自動車のSCコード
     debug_mode = False
 
     os.makedirs(output_folder, exist_ok=True)
-    df_wide = process_stock_data(folder_path, output_folder, sector_code, first_stock_code, debug_mode)
+    df_wide = process_stock_data(folder_path, output_folder, industry_code, first_stock_code, debug_mode)
