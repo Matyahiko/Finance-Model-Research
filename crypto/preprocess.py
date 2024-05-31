@@ -4,6 +4,8 @@ import numpy as np
 import talib
 from sklearn.model_selection import train_test_split
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # JSONファイルを読み込む
 with open('raw_data/btc/BTC-JPY_5min_2021-2024.json', 'r') as f:
@@ -81,33 +83,52 @@ train_size = 0.8  # 学習データの割合を指定
 train_df = df_split[:int(len(df_split) * train_size)]
 test_df = df_split[int(len(df_split) * train_size):]
 
-print(f"全データ数: {len(df_split)}")
-print(f"学習データ数: {len(train_df)}")
-print(f"テストデータ数: {len(test_df)}")
+print(f"全データ数: {df_split.shape}")
+print(f"学習データ数: {train_df.shape}")
+print(f"テストデータ数: {test_df.shape}")
 
-# 多重共線性のチェック
-def check_multicollinearity(data, threshold=5):
-    features = data.columns.tolist()
-    vif_scores = []
-    for feature in features:
-        vif_score = variance_inflation_factor(data[features].values, features.index(feature))
-        vif_scores.append((feature, vif_score))
-    multicollinearity_features = [feature for feature, vif_score in vif_scores if vif_score > threshold]
-    return multicollinearity_features
+def check_multicollinearity(train_data, test_data, threshold=0.7):
+    # トレインデータの相関係数行列を計算
+    corr_matrix = train_data.corr()
 
-# 多重共線性が認められる特徴量を削除
-def remove_multicollinearity(data, threshold=5):
-    multicollinearity_features = check_multicollinearity(data, threshold)
-    data.drop(columns=multicollinearity_features, inplace=True)
-    return data
+    # 上三角行列を取得
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
 
-# 学習データとテストデータから多重共線性が認められる特徴量を削除
-train_df = remove_multicollinearity(train_df)
-test_df = remove_multicollinearity(test_df)
+    # 閾値を超える相関係数を持つ説明変数のペアを特定
+    multicollinearity_pairs = []
+    columns_to_drop = []
+    for i in range(len(upper_tri.columns)):
+        for j in range(i+1, len(upper_tri.columns)):
+            if abs(upper_tri.iloc[i, j]) > threshold:
+                multicollinearity_pairs.append((upper_tri.index[i], upper_tri.columns[j]))
+                columns_to_drop.append(upper_tri.columns[j])  # 削除する列を追加
 
-print(f"多重共線性が認められる特徴量を削除後の学習データ数: {len(train_df)}")
-print(f"多重共線性が認められる特徴量を削除後のテストデータ数: {len(test_df)}")
+    # 重複する列名を削除
+    columns_to_drop = list(set(columns_to_drop))
+
+    # トレインデータとテストデータから特徴量の列を削除
+    train_data_cleaned = train_data.drop(columns=columns_to_drop)
+    test_data_cleaned = test_data.drop(columns=columns_to_drop)
+
+    # ヒートマップを作成
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', cbar_kws={'label': 'Correlation'})
+    plt.title('Correlation Matrix Heatmap')
+    plt.tight_layout()
+
+    # ヒートマップを保存
+    plt.savefig('crypto/fig/correlation_heatmap.png')
+    plt.close()
+
+    return train_data_cleaned, test_data_cleaned
+
+# トレインデータのみで共線性チェックを行い、同じ特徴量をトレインデータとテストデータから削除
+train_df_cleaned, test_df_cleaned = check_multicollinearity(train_df, test_df)
+
+print(f"多重共線性が認められる特徴量を削除後の学習データ数: {train_df_cleaned.shape}")
+print(f"多重共線性が認められる特徴量を削除後のテストデータ数: {test_df_cleaned.shape}")
+
 
 # CSVファイルに出力
-train_df.to_csv("/root/src/src/crypto/procesed/btc_5min_technical_analysis_train.csv")
-test_df.to_csv("/root/src/src/crypto/procesed/btc_5min_technical_analysis_test.csv")
+train_df.to_csv("crypto/procesed/btc_5min_technical_analysis_train.csv")
+test_df.to_csv("crypto/procesed/btc_5min_technical_analysis_test.csv")
