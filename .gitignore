@@ -8,5 +8,5 @@
 *.html
 *.pdf
 *.npy
-catboost_info/
-models/
+catboost_info/*
+models/*
