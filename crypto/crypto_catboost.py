@@ -6,6 +6,7 @@ from sklearn.metrics import mean_squared_error
 from catboost import CatBoostRegressor
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 
 def rolling_window_split(data, window_size, step_size):
     """
@@ -20,7 +21,15 @@ def load_and_preprocess_data(file_path):
     """
     df = pd.read_csv(file_path, index_col="close_time", parse_dates=True)
     df["macd_cross"] = df["macd_cross"].map({-1: 0, 0: 1, 1: 2})
-    return df
+    
+    # 目的変数を定義
+    target = "label"
+
+    # 目的変数以外の列を特徴量として選択
+    features = [col for col in df.columns if col != target]
+    
+    return df, features, target
+
 
 def train_model(df, features, target, params, param_grid, window_size, step_size):
     """
@@ -75,9 +84,9 @@ def test_model(test_data, features, target, window_size, step_size):
     """
     モデルのテストを行う関数
     """
-    if os.path.exists("src/crypto/models/catboost_model.json"):
+    if os.path.exists("crypto/models/catboost_model.json"):
         model = CatBoostRegressor()
-        model.load_model("src/crypto/models/catboost_model.json")
+        model.load_model("crypto/models/catboost_model.json")
 
         X_test = test_data[features]
         y_test = test_data[target]
@@ -99,6 +108,21 @@ def test_model(test_data, features, target, window_size, step_size):
         # テストデータと予測データをプロット
         plot_test_prediction(y_test[window_size:], y_pred_test_list)
 
+        # 混同行列の計算と出力
+        y_test_binary = [1 if y > 0 else 0 for y in y_test[window_size:]]
+        y_pred_test_binary = [1 if y > 0 else 0 for y in y_pred_test_list]
+        cm = confusion_matrix(y_test_binary, y_pred_test_binary)
+        print("\nConfusion Matrix:")
+        print(cm)
+
+        # プレシジョン、リコール、F1スコアの計算と出力
+        precision = precision_score(y_test_binary, y_pred_test_binary)
+        recall = recall_score(y_test_binary, y_pred_test_binary)
+        f1 = f1_score(y_test_binary, y_pred_test_binary)
+        print(f"\nPrecision: {precision:.4f}")
+        print(f"Recall: {recall:.4f}")
+        print(f"F1 Score: {f1:.4f}")
+
     else:
         print("モデルが見つかりません。先に学習モードで実行してください。")
 
@@ -119,7 +143,7 @@ def plot_test_prediction(y_test, y_pred_test):
     plt.title("Actual vs Predicted Return")
 
     # 最新の連番を付けて画像を保存
-    os.makedirs("/root/src/src/crypto/fig", exist_ok=True)
+    #os.makedirs("/root/src/src/crypto/fig", exist_ok=True)
     existing_files = [f for f in os.listdir("/root/src/src/crypto/fig") if f.startswith("test_prediction")]
     if existing_files:
         latest_num = max([int(f.split(".")[0].split("_")[-1]) for f in existing_files])
@@ -127,7 +151,7 @@ def plot_test_prediction(y_test, y_pred_test):
     else:
         new_num = 1
     
-    plt.savefig(f"/root/src/src/crypto/fig/test_prediction_{new_num}.png")
+    plt.savefig(f"crypto/fig/test_prediction_{new_num}.png")
     plt.close()
 
 def plot_learning_curve(rmses):
@@ -142,22 +166,17 @@ def plot_learning_curve(rmses):
     plt.tight_layout()
     
     # 画像を保存
-    os.makedirs("src/crypto/fig/learning_curve/", exist_ok=True)
-    plt.savefig("src/crypto/fig/learning_curve/learning_curve.png")
+    os.makedirs("crypto/fig/learning_curve/", exist_ok=True)
+    plt.savefig("crypto/fig/learning_curve/learning_curve.png")
     plt.close()
 
 if __name__ == "__main__":
-    # 特徴量と目的変数を定義
-    #features = ["open_price", "high_price", "low_price", "close_price", "SMA5", "SMA10", "SMA20", "SMA50", "SMA100", "SMA200", "upper_band", "middle_band", "lower_band", "macd", "macdsignal","macd_cross", "macdhist", "RSI", "slowk", "slowd", "ADX", "CCI", "ATR", "ROC", "Williams %R"]
-    features = ["open_price", "high_price", "low_price", "close_price", "SMA5", "SMA10", "SMA20", "SMA50", "SMA100", "SMA200", "upper_band", "middle_band", "lower_band", "macd", "macdsignal","macd_cross", "macdhist", "RSI", "slowk", "slowd", "ADX", "CCI", "ATR", "ROC", "Williams %R"]
-    target = "return"
-
     # catboostモデルの設定
     params = {
-        "objective": "RMSE",  # 回帰問題用の目的関数
-        "loss_function": "RMSE",  # 評価指標をRMSEに変更
+        "objective": "RMSE",  # 二値分類用の目的関数
+        "eval_metric": "AUC",  # 評価指標をAUCに変更
     }
-
+    
     # デフォルトのパラメータグリッド
     param_grid_default = {
         "depth": [6],
@@ -166,49 +185,47 @@ if __name__ == "__main__":
         "l2_leaf_reg": [3],
         "colsample_bylevel": [0.8],
         "early_stopping_rounds": [20],
-        "eval_metric": ["RMSE"],
         "random_seed": [42],
         "boosting_type": ["Plain"],
         "bootstrap_type": ["Bayesian"],
     }
-
+    
     # パラメータ探索用のパラメータグリッド
     param_grid_search = {
         "depth": [4, 6, 8],
-        "learning_rate": [0.01, 0.05, 0.1,1,2],
+        "learning_rate": [0.01, 0.05, 0.1, 1, 2],
         "iterations": [100, 200, 300, 500],
         "l2_leaf_reg": [1, 3, 5, 7, 9],
         "colsample_bylevel": [0.6, 0.8, 1.0],
         "early_stopping_rounds": [10, 20, 30],
-        "eval_metric": ["RMSE"],
         "random_seed": [42],
         "boosting_type": ["Plain", "Ordered"],
         "bootstrap_type": ["Bayesian", "Bernoulli", "MVS"],
     }
-
+    
     # ローリングウィンドウの設定
     window_size = 12
     step_size = 1
-
+    
     # モード選択
     mode = input("実行モードを選択してください（train/test）: ")
-
+    
     if mode == "train":
         search_params = input("パラメータ探索を行いますか？（y/n）: ")
         if search_params.lower() == "y":
             param_grid = param_grid_search
         else:
             param_grid = param_grid_default
-
+        
         # 学習データの読み込みと前処理
-        df = load_and_preprocess_data("crypto/procesed/btc_5min_technical_analysis_train.csv")
-
+        df, features, target = load_and_preprocess_data("crypto/procesed/btc_1min_technical_analysis_train.csv")
+        
         # モデルの学習
         train_model(df, features, target, params, param_grid, window_size, step_size)
-
+    
     elif mode == "test":
         # テストデータの読み込みと前処理
-        test_data = load_and_preprocess_data("crypto/procesed/btc_5min_technical_analysis_test.csv")
-
+        test_data, features, target = load_and_preprocess_data("crypto/procesed/btc_1min_technical_analysis_test.csv")
+        
         # モデルのテスト
         test_model(test_data, features, target, window_size, step_size)
