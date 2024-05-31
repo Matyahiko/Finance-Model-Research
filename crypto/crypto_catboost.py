@@ -148,6 +148,7 @@ def plot_learning_curve(rmses):
 
 if __name__ == "__main__":
     # 特徴量と目的変数を定義
+    #features = ["open_price", "high_price", "low_price", "close_price", "SMA5", "SMA10", "SMA20", "SMA50", "SMA100", "SMA200", "upper_band", "middle_band", "lower_band", "macd", "macdsignal","macd_cross", "macdhist", "RSI", "slowk", "slowd", "ADX", "CCI", "ATR", "ROC", "Williams %R"]
     features = ["open_price", "high_price", "low_price", "close_price", "SMA5", "SMA10", "SMA20", "SMA50", "SMA100", "SMA200", "upper_band", "middle_band", "lower_band", "macd", "macdsignal","macd_cross", "macdhist", "RSI", "slowk", "slowd", "ADX", "CCI", "ATR", "ROC", "Williams %R"]
     target = "return"
 
