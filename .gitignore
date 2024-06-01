@@ -10,3 +10,4 @@
 *.npy
 catboost_info/
 models/*
+research/
