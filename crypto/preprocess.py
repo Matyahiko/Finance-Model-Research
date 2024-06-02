@@ -75,15 +75,16 @@ df_split["Williams %R"] = talib.WILLR(high_price, low_price, close_price, timepe
 # 値上がり率（単純収益率）を計算
 df_split["return"] = df_split["close_price"].pct_change()
 
-# 上昇と下降の二値分類のラベルを作成
-df_split["label"] = np.where(df_split["return"] > 0, 1, 0)
+# 値上がり率が0.2以上の場合にラベルを1、それ以外の場合にラベルを0とする
+threshold = 0.2
+df_split["label"] = np.where(df_split["return"] >= threshold, 1, 0)
 df_split.drop("return", axis=1, inplace=True)
 
 plt.figure(figsize=(6, 4))
 df_split["label"].hist(bins=2)
 plt.xlabel("Label")
 plt.ylabel("Frequency")
-plt.title("Histogram of Labels (0: Decrease, 1: Increase)")
+plt.title(f"Histogram of Labels (0: Return < {threshold}, 1: Return >= {threshold})")
 plt.xticks([0, 1])
 plt.savefig("crypto/fig/label_histogram.png")
 
