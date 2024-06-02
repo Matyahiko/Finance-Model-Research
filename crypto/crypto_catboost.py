@@ -31,7 +31,7 @@ def load_and_preprocess_data(file_path):
     return df, features, target
 
 
-def train_model(df, features, target, params, param_grid, window_size, step_size):
+def train_model_timeseries(df, features, target, params, param_grid, window_size, step_size):
     """
     モデルの学習を行う関数
     """
@@ -221,7 +221,7 @@ if __name__ == "__main__":
         df, features, target = load_and_preprocess_data("crypto/procesed/btc_1min_technical_analysis_train.csv")
         
         # モデルの学習
-        train_model(df, features, target, params, param_grid, window_size, step_size)
+        train_model_timeseries(df, features, target, params, param_grid, window_size, step_size)
     
     elif mode == "test":
         # テストデータの読み込みと前処理
