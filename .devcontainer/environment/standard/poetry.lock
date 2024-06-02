@@ -489,6 +489,17 @@ numpy = ">=1.20.3"
 py-cpuinfo = "*"
 
 [[package]]
+name = "bottle"
+version = "0.12.25"
+description = "Fast and simple WSGI-framework for small web-applications."
+optional = false
+python-versions = "*"
+files = [
+    {file = "bottle-0.12.25-py3-none-any.whl", hash = "sha256:d6f15f9d422670b7c073d63bd8d287b135388da187a0f3e3c19293626ce034ea"},
+    {file = "bottle-0.12.25.tar.gz", hash = "sha256:e1a9c94970ae6d710b3fb4526294dfeb86f2cb4a81eff3a4b98dc40fb0e5e021"},
+]
+
+[[package]]
 name = "ccxt"
 version = "4.3.36"
 description = "A JavaScript / TypeScript / Python / C# / PHP cryptocurrency trading library with support for 100+ exchanges"
@@ -3352,6 +3363,30 @@ checking = ["black", "blackdoc", "flake8", "isort", "mypy", "mypy-boto3-s3", "ty
 document = ["ase", "cmaes (>=0.10.0)", "fvcore", "lightgbm", "matplotlib (!=3.6.0)", "pandas", "pillow", "plotly (>=4.9.0)", "scikit-learn", "sphinx", "sphinx-copybutton", "sphinx-gallery", "sphinx-plotly-directive", "sphinx-rtd-theme (>=1.2.0)", "torch", "torchvision"]
 optional = ["boto3", "cmaes (>=0.10.0)", "google-cloud-storage", "matplotlib (!=3.6.0)", "pandas", "plotly (>=4.9.0)", "redis", "scikit-learn (>=0.24.2)", "scipy", "torch"]
 test = ["coverage", "fakeredis[lua]", "kaleido", "moto", "pytest", "scipy (>=1.9.2)", "torch"]
+
+[[package]]
+name = "optuna-dashboard"
+version = "0.15.1"
+description = "Real-time dashboard for Optuna"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "optuna-dashboard-0.15.1.tar.gz", hash = "sha256:f4d59e159f0757c3a41cd1ff0c6d445ddbb3ca303bb72f29c2b35f856d445ccf"},
+    {file = "optuna_dashboard-0.15.1-py3-none-any.whl", hash = "sha256:3e8f8b28d671f1781c2ff9bca7b65ea6f3c4d82fa8ac785f250a094735868483"},
+]
+
+[package.dependencies]
+bottle = "*"
+optuna = ">=3.1.0"
+packaging = "*"
+scikit-learn = "*"
+
+[package.extras]
+docs = ["boto3", "botorch", "sphinx", "sphinx-rtd-theme", "streamlit"]
+optional = ["boto3", "botorch (>=0.8.1)", "streamlit"]
+plotlypy = ["plotly"]
+preferential = ["botorch (>=0.8.1)"]
+test = ["coverage", "moto[s3]", "plotly", "pytest"]
 
 [[package]]
 name = "overrides"
@@ -6429,4 +6464,4 @@ repair = ["scipy (>=1.6.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "9916b463a1db41af43d93fcfeacbaf98fb7c9ceba67a1cb2a481db0383eade95"
+content-hash = "d00b32e809bf807b94f0ed4037e889254350b577f176f81780e55130a1eeea34"
