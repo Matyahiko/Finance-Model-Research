@@ -7,6 +7,55 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+def vis_distribution(df, feature):
+    fig, ax = plt.subplots(figsize=(8, 4))
+    
+    data = df[feature]
+    ax.hist(data, bins=30, edgecolor='black')
+    ax.set_title(f"Distribution of {feature}")
+    ax.set_xlabel(feature)
+    ax.set_ylabel("Frequency")
+        
+    plt.tight_layout()
+        
+    plt.tight_layout()
+    plt.savefig(f"crypto/fig/{feature}_distribution.png")  
+
+def check_multicollinearity(train_data, test_data, threshold=0.7):
+   # トレインデータの相関係数行列を計算
+   corr_matrix = train_data.corr()
+
+   # 上三角行列を取得
+   upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+
+   # 閾値を超える相関係数を持つ説明変数のペアを特定
+   multicollinearity_pairs = []
+   columns_to_drop = []
+   for i in range(len(upper_tri.columns)):
+       for j in range(i+1, len(upper_tri.columns)):
+           if abs(upper_tri.iloc[i, j]) > threshold:
+               multicollinearity_pairs.append((upper_tri.index[i], upper_tri.columns[j]))
+               columns_to_drop.append(upper_tri.columns[j])  # 削除する列を追加
+
+   # 重複する列名を削除
+   columns_to_drop = list(set(columns_to_drop))
+
+   # トレインデータとテストデータから特徴量の列を削除
+   train_data_cleaned = train_data.drop(columns=columns_to_drop)
+   test_data_cleaned = test_data.drop(columns=columns_to_drop)
+
+   # ヒートマップを作成
+   plt.figure(figsize=(10, 8))
+   sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', cbar_kws={'label': 'Correlation'})
+   plt.title('Correlation Matrix Heatmap')
+   plt.tight_layout()
+
+   # ヒートマップを保存
+   plt.savefig('crypto/fig/correlation_heatmap.png')
+   plt.close()
+
+   return train_data_cleaned, test_data_cleaned
+
 # JSONファイルを読み込む
 with open('raw_data/btc/BTC-JPY_1min_2021-2024.json', 'r') as f:
    data = json.load(f)
@@ -75,19 +124,20 @@ df_split["Williams %R"] = talib.WILLR(high_price, low_price, close_price, timepe
 # 値上がり率（単純収益率）を計算
 df_split["return"] = df_split["close_price"].pct_change()
 
-# 値上がり率が0.2以上の場合にラベルを1、それ以外の場合にラベルを0とする
-threshold = 0.2
+#debug
+df_split["return"].to_csv("crypto/procesed/return.csv")
+
+#df_split["return"]の中央値を計算
+median = df_split["return"].median()
+
+#threshold = median
+threshold = 0.0005
 df_split["label"] = np.where(df_split["return"] >= threshold, 1, 0)
+
+vis_distribution(df_split,"return")
+vis_distribution(df_split,"label")
+
 df_split.drop("return", axis=1, inplace=True)
-
-plt.figure(figsize=(6, 4))
-df_split["label"].hist(bins=2)
-plt.xlabel("Label")
-plt.ylabel("Frequency")
-plt.title(f"Histogram of Labels (0: Return < {threshold}, 1: Return >= {threshold})")
-plt.xticks([0, 1])
-plt.savefig("crypto/fig/label_histogram.png")
-
 
 # 欠損値を削除
 df_split.dropna(inplace=True)
@@ -101,46 +151,15 @@ print(f"全データ数: {df_split.shape}")
 print(f"学習データ数: {train_df.shape}")
 print(f"テストデータ数: {test_df.shape}")
 
-def check_multicollinearity(train_data, test_data, threshold=0.7):
-   # トレインデータの相関係数行列を計算
-   corr_matrix = train_data.corr()
 
-   # 上三角行列を取得
-   upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-
-   # 閾値を超える相関係数を持つ説明変数のペアを特定
-   multicollinearity_pairs = []
-   columns_to_drop = []
-   for i in range(len(upper_tri.columns)):
-       for j in range(i+1, len(upper_tri.columns)):
-           if abs(upper_tri.iloc[i, j]) > threshold:
-               multicollinearity_pairs.append((upper_tri.index[i], upper_tri.columns[j]))
-               columns_to_drop.append(upper_tri.columns[j])  # 削除する列を追加
-
-   # 重複する列名を削除
-   columns_to_drop = list(set(columns_to_drop))
-
-   # トレインデータとテストデータから特徴量の列を削除
-   train_data_cleaned = train_data.drop(columns=columns_to_drop)
-   test_data_cleaned = test_data.drop(columns=columns_to_drop)
-
-   # ヒートマップを作成
-   plt.figure(figsize=(10, 8))
-   sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', cbar_kws={'label': 'Correlation'})
-   plt.title('Correlation Matrix Heatmap')
-   plt.tight_layout()
-
-   # ヒートマップを保存
-   plt.savefig('crypto/fig/correlation_heatmap.png')
-   plt.close()
-
-   return train_data_cleaned, test_data_cleaned
 
 # トレインデータのみで共線性チェックを行い、同じ特徴量をトレインデータとテストデータから削除
 train_df_cleaned, test_df_cleaned = check_multicollinearity(train_df, test_df)
 
 print(f"多重共線性が認められる特徴量を削除後の学習データ数: {train_df_cleaned.shape}")
 print(f"多重共線性が認められる特徴量を削除後のテストデータ数: {test_df_cleaned.shape}")
+print(f"削除された特徴量: {set(train_df.columns) - set(train_df_cleaned.columns)}")
+print(f"閾値:{threshold:.6f}")
 
 # CSVファイルに出力
 train_df_cleaned.to_csv("/root/src/crypto/procesed/btc_1min_technical_analysis_train.csv")
