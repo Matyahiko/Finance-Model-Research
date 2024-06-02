@@ -10,4 +10,4 @@
 *.npy
 catboost_info/
 models/*
-rakuten/
+rakuten_data/
