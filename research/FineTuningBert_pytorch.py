@@ -122,3 +122,8 @@ print("Test predictions:", predictions)
 cm = confusion_matrix(true_labels, predictions)
 print("Confusion Matrix:")
 print(cm)
+
+
+# modelの保存
+os.makedirs("research/SentimentBertModel", exist_ok=True)
+model.save_pretrained("research/SentimentBertModel")
