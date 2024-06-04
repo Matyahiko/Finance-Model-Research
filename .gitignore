@@ -8,4 +8,8 @@
 *.html
 *.pdf
 *.npy
-models/
+catboost_info/
+models/*
+RakutenData/
+SentimentData/
+RawData/
