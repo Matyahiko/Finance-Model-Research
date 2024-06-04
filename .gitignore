@@ -10,4 +10,6 @@
 *.npy
 catboost_info/
 models/*
-rakuten_data/
+RakutenData/
+SentimentData/
+
