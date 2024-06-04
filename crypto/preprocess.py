@@ -130,8 +130,8 @@ df_split["return"].to_csv("crypto/procesed/return.csv")
 #df_split["return"]の中央値を計算
 median = df_split["return"].median()
 
-#threshold = median
-threshold = 0.0005
+threshold = median
+#threshold = 0.0005
 df_split["label"] = np.where(df_split["return"] >= threshold, 1, 0)
 
 vis_distribution(df_split,"return")

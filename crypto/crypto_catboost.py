@@ -10,6 +10,7 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 import optuna
 
 
+
 def rolling_window_split(data, window_size, step_size):
     """
     データをローリングウィンドウで分割するジェネレータ関数
@@ -33,33 +34,35 @@ def load_and_preprocess_data(file_path):
     return df, features, target
 
 def train_model_timeseries(df, features, target, params, window_size, step_size):
-    """
-    モデルの学習を行う関数
-    """
-    start_time = time.time()  # 学習の開始時間を記録
+   """
+   モデルの学習を行う関数
+   """
+   start_time = time.time()  # 学習の開始時間を記録
 
-    rmses = []
+   rmses = []
+   model = CatBoostRegressor(**params)
 
-    model = CatBoostRegressor(**params)
+   for train_index, val_index in rolling_window_split(df, window_size, step_size):
+       X_train, X_val = df[features].loc[train_index], df[features].loc[val_index]
+       y_train, y_val = df[target].loc[train_index], df[target].loc[val_index]
 
-    for train_index, val_index in rolling_window_split(df, window_size, step_size):
-        X_train, X_val = df[features].loc[train_index], df[features].loc[val_index]
-        y_train, y_val = df[target].loc[train_index], df[target].loc[val_index]
+       model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
 
-        model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+       y_pred_val = model.predict(X_val)
+       rmse = np.sqrt(mean_squared_error(y_val, y_pred_val))
+       rmses.append(rmse)
 
-        y_pred_val = model.predict(X_val)
-        rmse = np.sqrt(mean_squared_error(y_val, y_pred_val))
-        rmses.append(rmse)
+   end_time = time.time()  # 学習の終了時間を記録
+   training_time = end_time - start_time  # 学習にかかった時間を計算
 
-    end_time = time.time()  # 学習の終了時間を記録
-    training_time = end_time - start_time  # 学習にかかった時間を計算
+   mean_val_rmse = np.mean(rmses)
+   print(f"\nMean Validation RMSE: {mean_val_rmse:.4f}")
+   print(f"Training Time: {training_time:.2f} seconds")
 
-    mean_val_rmse = np.mean(rmses)
-    print(f"\nMean Validation RMSE: {mean_val_rmse:.4f}")
-    print(f"Training Time: {training_time:.2f} seconds")
+   # モデルを保存
+   model.save_model('crypto/models/model.py', format="python", export_parameters=None)
 
-    return -mean_val_rmse  # Optunaは最小化を目的とするため、RMSEの負の値を返す
+   return -mean_val_rmse  # Optunaは最小化を目的とするため、RMSEの負の値を返す
 
 def test_model(test_data, features, target, window_size, step_size):
     """
@@ -154,7 +157,6 @@ def plot_learning_curve(rmses):
 def objective(trial):
     
 
-
     # Optunaによるパラメータ探索
     params = {
         "objective": "RMSE",
@@ -175,7 +177,7 @@ def objective(trial):
     window_size = 12
     step_size = 1
         
-        # 学習データの読み込みと前処理
+    # 学習データの読み込みと前処理
     df, features, target = load_and_preprocess_data("crypto/procesed/btc_1min_technical_analysis_train.csv")
 
     # モデルの学習
@@ -184,28 +186,61 @@ def objective(trial):
     return best_score
 
 if __name__ == "__main__":
+   # モード選択
+   mode = input("実行モードを選択してください（train/test）: ")
 
-    # モード選択
-    mode = input("実行モードを選択してください（train/test）: ")
+   if mode == "train":
+       # Optunaによるパラメータ探索
+       study = optuna.create_study(direction="maximize")
+       study.optimize(objective, n_trials=100)
 
-    if mode == "train":
-        # Optunaによるパラメータ探索
-        study = optuna.create_study(direction="maximize")
-        study.optimize(objective, n_trials=100)
+       # Optunaの可視化
+       fig = optuna.visualization.plot_optimization_history(study)
+       fig.show()
 
-        print("Best trial:")
-        trial = study.best_trial
+       fig = optuna.visualization.plot_parallel_coordinate(study)
+       fig.show()
 
-        print("  Value: ", trial.value)
-        print("  Params: ")
-        for key, value in trial.params.items():
-            print(f"    {key}: {value}")
+       fig = optuna.visualization.plot_contour(study)
+       fig.show()
 
-    elif mode == "test":
-        window_size = 12
-        step_size = 1
-        # テストデータの読み込みと前処理
-        test_data, features, target = load_and_preprocess_data("crypto/procesed/btc_1min_technical_analysis_test.csv")
+       fig = optuna.visualization.plot_param_importances(study)
+       fig.show()
 
-        # モデルのテスト
-        test_model(test_data, features, target, window_size, step_size)
+       print("Best trial:")
+       trial = study.best_trial
+
+       print("  Value: ", trial.value)
+       print("  Params: ")
+       for key, value in trial.params.items():
+           print(f"    {key}: {value}")
+
+       # 最適なパラメータでモデルを再学習
+       best_params = trial.params
+       window_size = 12
+       step_size = 1
+       df, features, target = load_and_preprocess_data("crypto/procesed/btc_1min_technical_analysis_train.csv")
+       best_model = train_model_timeseries(df, features, target, best_params, window_size, step_size)
+
+   elif mode == "test":
+       window_size = 12
+       step_size = 1
+       # テストデータの読み込みと前処理
+       test_data, features, target = load_and_preprocess_data("crypto/procesed/btc_1min_technical_analysis_test.csv")
+
+       
+       loaded_model = CatBoostRegressor()
+
+       # モデルのテスト
+       test_model(test_data, features, target, window_size, step_size, loaded_model)
+
+       # 特徴量の重要度を可視化
+       feature_importances = loaded_model.get_feature_importance(prettified=True)
+       fig, ax = plt.subplots(figsize=(10, 6))
+       ax.barh(range(len(feature_importances)), feature_importances, align='center')
+       ax.set_yticks(range(len(feature_importances)))
+       ax.set_yticklabels(features)
+       ax.set_xlabel('Feature Importance')
+       ax.set_title('Feature Importances')
+       plt.tight_layout()
+       plt.show()
