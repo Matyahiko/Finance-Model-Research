@@ -1,62 +1,45 @@
-from transformers import BertTokenizer, BertForSequenceClassification
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
-from torch.utils.data import TensorDataset, random_split
+from transformers import BertJapaneseTokenizer, BertModel
 import torch
 
-# IMDbデータセットをロード
-from datasets import load_dataset
-imdb = load_dataset("imdb")
 
-# BERTトークナイザーとモデルをロード
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)
+class SentenceBertJapanese:
+    def __init__(self, model_name_or_path, device=None):
+        self.tokenizer = BertJapaneseTokenizer.from_pretrained(model_name_or_path)
+        self.model = BertModel.from_pretrained(model_name_or_path)
+        self.model.eval()
 
-# データセットをトークン化
-def tokenize(batch):
-    return tokenizer(batch['text'], padding=True, truncation=True)
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(device)
+        self.model.to(device)
 
-imdb_tokenized = imdb.map(tokenize, batched=True, batch_size=None)
+    def _mean_pooling(self, model_output, attention_mask):
+        token_embeddings = model_output[0] #First element of model_output contains all token embeddings
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
-# データセットを训练用とテスト用に分割
-train_size = int(0.8 * len(imdb_tokenized['train']))
-val_size = len(imdb_tokenized['train']) - train_size
-train_dataset, val_dataset = random_split(imdb_tokenized['train'], [train_size, val_size])
+    @torch.no_grad()
+    def encode(self, sentences, batch_size=8):
+        all_embeddings = []
+        iterator = range(0, len(sentences), batch_size)
+        for batch_idx in iterator:
+            batch = sentences[batch_idx:batch_idx + batch_size]
 
-# データローダーを作成
-train_dataloader = DataLoader(train_dataset, sampler=RandomSampler(train_dataset), batch_size=8)
-validation_dataloader = DataLoader(val_dataset, sampler=SequentialSampler(val_dataset), batch_size=8)
+            encoded_input = self.tokenizer.batch_encode_plus(batch, padding="longest", 
+                                           truncation=True, return_tensors="pt").to(self.device)
+            model_output = self.model(**encoded_input)
+            sentence_embeddings = self._mean_pooling(model_output, encoded_input["attention_mask"]).to('cpu')
 
-# 训练のセットアップ
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model.to(device)
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-5)
+            all_embeddings.extend(sentence_embeddings)
 
-# 训练ループ
-epochs = 3
-for epoch in range(epochs):
-    model.train()
-    for batch in train_dataloader:
-        optimizer.zero_grad()
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-        labels = batch['label'].to(device)
-        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-        loss = outputs.loss
-        loss.backward()
-        optimizer.step()
+        # return torch.stack(all_embeddings).numpy()
+        return torch.stack(all_embeddings)
 
-    model.eval()
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for batch in validation_dataloader:
-            input_ids = batch['input_ids'].to(device)
-            attention_mask = batch['attention_mask'].to(device)
-            labels = batch['label'].to(device)
-            outputs = model(input_ids, attention_mask=attention_mask)
-            _, predicted = torch.max(outputs.logits, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
 
-    accuracy = correct / total
-    print(f'Epoch {epoch+1} Accuracy: {accuracy}')
+MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"  # <- v2です。
+model = SentenceBertJapanese(MODEL_NAME)
+
+sentences = ["暴走したAI", "暴走した人工知能"]
+sentence_embeddings = model.encode(sentences, batch_size=8)
+
+print("Sentence embeddings:", sentence_embeddings)
