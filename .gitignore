@@ -13,7 +13,7 @@ models/*
 RakutenData/
 SentimentData/
 RawData/
-model.py
+crypto/models/*
 db.sqlite3
 research/SentimentBertModel/model.safetensors
 
