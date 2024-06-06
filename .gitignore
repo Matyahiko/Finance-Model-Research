@@ -13,3 +13,9 @@ models/*
 RakutenData/
 SentimentData/
 RawData/
+model.py
+db.sqlite3
+research/SentimentBertModel/model.safetensors
+
+
+

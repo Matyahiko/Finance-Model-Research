@@ -1,6 +1,6 @@
 
 from xml.dom.minidom import Document
-from transformers import BertJapaneseTokenizer, BertForSequenceClassification
+from transformers import BertJapaneseTokenizer, BertForSequenceClassification,DataCollatorWithPadding
 from datasets import load_dataset, load_from_disk
 import torch
 from torch.utils.data import DataLoader
@@ -17,19 +17,25 @@ from sklearn.metrics import confusion_matrix
 dataset = load_from_disk("research/SentimentData")
 #print(dataset)
 
+# デバイスの設定
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("device:", device)
+batch_size = 25
+
 # BERTモデルとトークナイザーの読み込み
 MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
 tokenizer = BertJapaneseTokenizer.from_pretrained(MODEL_NAME)
-model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  # num_labelsはラベルの数に置き換えてください
-
-# デバイスの設定
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  
 model.to(device)
-print("device:", device)
+
 
 #前処理
+#paddingとmaxlengthで挙動がおかしいのでDataCollatorを使用
 def preprocess_function(examples):
-    return tokenizer(examples["sentence"], truncation=True, padding="max_length", max_length=50)
+    return tokenizer(examples["sentence"], truncation=True,padding = True,max_length=25)
+
+#datacollatorの設定
+data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
 #train validation testのサブセットを渡す
 encoded_dataset = dataset.map(preprocess_function, batched=True)
@@ -40,13 +46,13 @@ validation_dataset = encoded_dataset["validation"].select_columns(["input_ids", 
 test_dataset = encoded_dataset["test"].select_columns(["input_ids", "label"])
 
 # データローダーの作成
-train_dataloader = DataLoader(encoded_dataset["train"], batch_size=50, shuffle=True, drop_last=True)
-validation_dataloader = DataLoader(encoded_dataset["validation"], batch_size=50, shuffle=True, drop_last=True)
-test_dataloader = DataLoader(encoded_dataset["test"], batch_size=50, shuffle=True,drop_last=True)
+train_dataloader = DataLoader(encoded_dataset["train"], batch_size=batch_size, shuffle=True, drop_last=True)
+validation_dataloader = DataLoader(encoded_dataset["validation"], batch_size=batch_size, shuffle=True, drop_last=True)
+test_dataloader = DataLoader(encoded_dataset["test"], batch_size=batch_size, shuffle=True,drop_last=True)
 
 
 #DebugInfo
-if False :
+if True :
     sample_num = 1
     GREEN = '\033[32m'
     RESET = '\033[0m'
@@ -57,10 +63,28 @@ if False :
     print(GREEN + f"decoded_dataset sentence sample{sample_num+1}: \n" + tokenizer.decode(encoded_dataset["train"]["input_ids"][sample_num+1])+"\n" + RESET)
 
     print(GREEN + f"batch size \n {train_dataloader.batch_size} \n"+RESET)
+    train_true = encoded_dataset["train"]["label"].count(0)
+    train_false = encoded_dataset["train"]["label"].count(1)
+    
+    test_true = encoded_dataset["test"]["label"].count(0)
+    test_false = encoded_dataset["test"]["label"].count(1)
+    
+    train_total = train_true + train_false
+    train_true_ratio = train_true / train_total
+    train_false_ratio = train_false / train_total
+
+    test_total = test_true + test_false
+    test_true_ratio = test_true / test_total
+    test_false_ratio = test_false / test_total
+    
+    print(GREEN + f"train_true: {train_true} train_false: {train_false} train_total: {train_total} \n"+RESET)
+    print(GREEN + f"train_true_ratio: {train_true_ratio} train_false_ratio: {train_false_ratio} \n"+RESET)
+    print(GREEN + f"test_true: {test_true} test_false: {test_false} test_total: {test_total} \n"+RESET)
+    print(GREEN + f"test_true_ratio: {test_true_ratio} test_false_ratio: {test_false_ratio} \n"+RESET)
+    
    
     for batch in train_dataloader:
         #print(GREEN + f"batch : \n{batch} \n"+RESET)
-        
         print(GREEN + f"batch column: \n {batch.keys()} \n"+RESET)
         input_ids = batch["input_ids"]
         print(GREEN + f"input_ids: \n{type(input_ids)} \n"+RESET)
@@ -78,7 +102,7 @@ if False :
 optimizer = AdamW(model.parameters(), lr=2e-5)
 
 # ファインチューニングのループ
-num_epochs = 10
+num_epochs = 50
 for epoch in range(num_epochs):
     # 訓練
     model.train()
@@ -98,6 +122,7 @@ for epoch in range(num_epochs):
         input_ids = torch.stack(batch["input_ids"]).to(device)
         labels = batch["label"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
+        print(outputs)
         validation_loss += outputs.loss.item()
 
     validation_loss /= len(validation_dataloader)
