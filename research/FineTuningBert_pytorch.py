@@ -3,10 +3,14 @@ from xml.dom.minidom import Document
 from transformers import BertJapaneseTokenizer, BertForSequenceClassification,DataCollatorWithPadding
 from datasets import load_dataset, load_from_disk
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AdamW
 import os
 from sklearn.metrics import confusion_matrix
+GREEN = '\033[32m'
+YELLOW = '\033[33m'
+RESET = '\033[0m'
 
 # # データセットの読み込み
 # dataset = load_dataset("llm-book/wrime-sentiment")
@@ -19,13 +23,19 @@ dataset = load_from_disk("research/SentimentData")
 
 # デバイスの設定
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("device:", device)
+print(YELLOW+f"device:{device}" + RESET)
+
+num_gpus = torch.cuda.device_count()
+print( YELLOW + f"Available GPUs: {num_gpus}" + RESET)
+
 batch_size = 25
 
 # BERTモデルとトークナイザーの読み込み
 MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
 tokenizer = BertJapaneseTokenizer.from_pretrained(MODEL_NAME)
 model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  
+if num_gpus > 1:
+    model = nn.DataParallel(model)
 model.to(device)
 
 
@@ -61,8 +71,6 @@ test_dataloader = DataLoader(encoded_dataset["test"], batch_size=batch_size, shu
 #トークンの復元チェックは機能していないけど、想定通りの動作なので放置
 if False :
     sample_num = 1
-    GREEN = '\033[32m'
-    RESET = '\033[0m'
     print(GREEN + f"encoded_dataset sentence sample{sample_num}: \n" + str(encoded_dataset["train"]["input_ids"][sample_num]) +"\n" + RESET)
     print(GREEN + f"decoded_dataset sentence sample{sample_num}: \n" + tokenizer.decode(encoded_dataset["train"]["input_ids"][sample_num])+"\n" + RESET)
 
@@ -123,7 +131,8 @@ for epoch in range(num_epochs):
     for batch in train_dataloader:
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
-        outputs = model(input_ids=input_ids, labels=labels)
+        attention_mask = batch["attention_mask"].to(device)
+        outputs = model.module(input_ids, attention_mask=attention_mask, labels=labels)
         loss = outputs.loss
         loss.backward()
         optimizer.step()
@@ -163,5 +172,7 @@ print(cm)
 
 
 # modelの保存
+if isinstance(model, nn.DataParallel):
+    model = model.module
 os.makedirs("research/SentimentBertModel", exist_ok=True)
 model.save_pretrained("research/SentimentBertModel")
