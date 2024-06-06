@@ -32,42 +32,48 @@ model.to(device)
 #前処理
 #paddingとmaxlengthで挙動がおかしいのでDataCollatorを使用
 def preprocess_function(examples):
-    return tokenizer(examples["sentence"], truncation=True,padding = True,max_length=25)
+    tokenized_inputs = tokenizer(examples["sentence"], truncation=True, padding=True, max_length=512)
+    return {"input_ids": tokenized_inputs["input_ids"], "labels": examples["label"],"attention_mask": tokenized_inputs["attention_mask"]}
 
 #datacollatorの設定
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
 #train validation testのサブセットを渡す
-encoded_dataset = dataset.map(preprocess_function, batched=True)
+# データセットの前処理
+encoded_dataset = dataset.map(preprocess_function, batched=True, remove_columns=["sentence","user_id","datetime","label"])
+
+print(encoded_dataset["train"].column_names)
 
 # 必要な列のみを選択
-train_dataset = encoded_dataset["train"].select_columns(["input_ids", "label"])
-validation_dataset = encoded_dataset["validation"].select_columns(["input_ids", "label"])
-test_dataset = encoded_dataset["test"].select_columns(["input_ids", "label"])
+#上と重複してる部分があるけどまあいいや
+train_dataset = encoded_dataset["train"].select_columns(["input_ids", "labels"])
+validation_dataset = encoded_dataset["validation"].select_columns(["input_ids", "labels"])
+test_dataset = encoded_dataset["test"].select_columns(["input_ids", "labels"])
 
 # データローダーの作成
-train_dataloader = DataLoader(encoded_dataset["train"], batch_size=batch_size, shuffle=True, drop_last=True)
-validation_dataloader = DataLoader(encoded_dataset["validation"], batch_size=batch_size, shuffle=True, drop_last=True)
-test_dataloader = DataLoader(encoded_dataset["test"], batch_size=batch_size, shuffle=True,drop_last=True)
+train_dataloader = DataLoader(encoded_dataset["train"], batch_size=batch_size, shuffle=True, drop_last=True, collate_fn=data_collator)
+validation_dataloader = DataLoader(encoded_dataset["validation"], batch_size=batch_size, shuffle=True, drop_last=True,collate_fn=data_collator)
+test_dataloader = DataLoader(encoded_dataset["test"], batch_size=batch_size, shuffle=True,drop_last=True,collate_fn=data_collator)
 
 
 #DebugInfo
+#torchの形状を変更したので、一部機能しない
 if True :
     sample_num = 1
     GREEN = '\033[32m'
     RESET = '\033[0m'
-    print(GREEN + f"encoded_dataset sentence samaple{sample_num}: \n" + str(encoded_dataset["train"]["input_ids"][sample_num]) +"\n" + RESET)
+    print(GREEN + f"encoded_dataset sentence sample{sample_num}: \n" + str(encoded_dataset["train"]["input_ids"][sample_num]) +"\n" + RESET)
     print(GREEN + f"decoded_dataset sentence sample{sample_num}: \n" + tokenizer.decode(encoded_dataset["train"]["input_ids"][sample_num])+"\n" + RESET)
 
-    print(GREEN + f"encoded_dataset sentence samaple{sample_num+1}: \n" + str(encoded_dataset["train"]["input_ids"][sample_num+1]) +"\n" + RESET)
+    print(GREEN + f"encoded_dataset sentence sample{sample_num+1}: \n" + str(encoded_dataset["train"]["input_ids"][sample_num+1]) +"\n" + RESET)
     print(GREEN + f"decoded_dataset sentence sample{sample_num+1}: \n" + tokenizer.decode(encoded_dataset["train"]["input_ids"][sample_num+1])+"\n" + RESET)
 
     print(GREEN + f"batch size \n {train_dataloader.batch_size} \n"+RESET)
-    train_true = encoded_dataset["train"]["label"].count(0)
-    train_false = encoded_dataset["train"]["label"].count(1)
+    train_true = encoded_dataset["train"]["labels"].count(0)
+    train_false = encoded_dataset["train"]["labels"].count(1)
     
-    test_true = encoded_dataset["test"]["label"].count(0)
-    test_false = encoded_dataset["test"]["label"].count(1)
+    test_true = encoded_dataset["test"]["labels"].count(0)
+    test_false = encoded_dataset["test"]["labels"].count(1)
     
     train_total = train_true + train_false
     train_true_ratio = train_true / train_total
@@ -84,7 +90,7 @@ if True :
     
    
     for batch in train_dataloader:
-        #print(GREEN + f"batch : \n{batch} \n"+RESET)
+        print(GREEN + f"batch : \n{batch} \n"+RESET)
         print(GREEN + f"batch column: \n {batch.keys()} \n"+RESET)
         input_ids = batch["input_ids"]
         print(GREEN + f"input_ids: \n{type(input_ids)} \n"+RESET)
@@ -93,9 +99,16 @@ if True :
         bun = []
         doc = [bun.append(strings)  for strings in decoded_text]
         print(GREEN+f"After Dataloader Decoded : {bun}"+RESET)
-        labels = batch["label"]
+        labels = batch["labels"]
         print("Labels:", labels,"\nLabels shape" ,labels.shape)
         break
+    
+    i = 0
+    for k,batch in enumerate(train_dataloader):
+        i+=k
+        
+    print(i)       
+        
 
 
 # オプティマイザーの設定
@@ -107,8 +120,8 @@ for epoch in range(num_epochs):
     # 訓練
     model.train()
     for batch in train_dataloader:
-        input_ids = torch.stack(batch["input_ids"]).to(device)
-        labels = batch["label"].to(device)
+        input_ids = batch["input_ids"].to(device)
+        labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
         loss = outputs.loss
         loss.backward()
@@ -120,7 +133,7 @@ for epoch in range(num_epochs):
     validation_loss = 0
     with torch.no_grad():
         input_ids = torch.stack(batch["input_ids"]).to(device)
-        labels = batch["label"].to(device)
+        labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
         print(outputs)
         validation_loss += outputs.loss.item()
@@ -136,7 +149,7 @@ true_labels = []
 with torch.no_grad():
     for batch in test_dataloader:
         input_ids = torch.stack(batch["input_ids"]).to(device)
-        labels = batch["label"].to(device)
+        labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
         predictions.extend(outputs.logits.argmax(dim=-1).tolist())
         true_labels.extend(labels.tolist())
