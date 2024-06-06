@@ -7,7 +7,28 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AdamW
 import os
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix,precision_score, recall_score, f1_score
+
+def calculate_metrics(true_labels, predictions, average='binary'):
+    """
+    混同行列からプレシジョン、リコール、F1スコアを計算する関数
+    
+    Parameters:
+        true_labels (array-like): 真の正解ラベル
+        predictions (array-like): 予測ラベル
+        average (str): 評価指標の平均化方法。'binary', 'micro', 'macro', 'weighted'のいずれか。
+                       デフォルトは'binary'。
+    
+    Returns:
+        tuple: (プレシジョン, リコール, F1スコア)
+    """
+    precision = precision_score(true_labels, predictions, average=average)
+    recall = recall_score(true_labels, predictions, average=average)
+    f1 = f1_score(true_labels, predictions, average=average)
+    
+    return precision, recall, f1
+
+
 GREEN = '\033[32m'
 YELLOW = '\033[33m'
 RESET = '\033[0m'
@@ -34,6 +55,7 @@ batch_size = 25
 MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
 tokenizer = BertJapaneseTokenizer.from_pretrained(MODEL_NAME)
 model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  
+#モデルの並列化
 if num_gpus > 1:
     model = nn.DataParallel(model)
 model.to(device)
@@ -118,13 +140,12 @@ if False :
         
     print(i)       
         
-
-
+        
 # オプティマイザーの設定
 optimizer = AdamW(model.parameters(), lr=2e-5)
 
 # ファインチューニングのループ
-num_epochs = 10
+num_epochs = 15
 for epoch in range(num_epochs):
     # 訓練
     model.train()
@@ -170,8 +191,13 @@ cm = confusion_matrix(true_labels, predictions)
 print("Confusion Matrix:")
 print(cm)
 
+precision, recall, f1 = calculate_metrics(true_labels, predictions)
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
 
 # modelの保存
+# DataParallelを使っている場合は、model.moduleでラップされているのでラップを解いて保存
 if isinstance(model, nn.DataParallel):
     model = model.module
 os.makedirs("research/SentimentBertModel", exist_ok=True)
