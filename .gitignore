@@ -15,6 +15,7 @@ SentimentData/
 RawData/
 model.py
 db.sqlite3
-research/model.safetensors
+research/SentimentBertModel/model.safetensors
+
 
 
