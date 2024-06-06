@@ -132,7 +132,7 @@ for epoch in range(num_epochs):
     model.eval()
     validation_loss = 0
     with torch.no_grad():
-        input_ids = torch.stack(batch["input_ids"]).to(device)
+        input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
         print(outputs)
@@ -148,7 +148,7 @@ true_labels = []
 
 with torch.no_grad():
     for batch in test_dataloader:
-        input_ids = torch.stack(batch["input_ids"]).to(device)
+        input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
         predictions.extend(outputs.logits.argmax(dim=-1).tolist())
