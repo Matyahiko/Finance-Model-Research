@@ -58,7 +58,8 @@ test_dataloader = DataLoader(encoded_dataset["test"], batch_size=batch_size, shu
 
 #DebugInfo
 #torchの形状を変更したので、一部機能しない
-if True :
+#トークンの復元チェックは機能していないけど、想定通りの動作なので放置
+if False :
     sample_num = 1
     GREEN = '\033[32m'
     RESET = '\033[0m'
@@ -115,7 +116,7 @@ if True :
 optimizer = AdamW(model.parameters(), lr=2e-5)
 
 # ファインチューニングのループ
-num_epochs = 50
+num_epochs = 10
 for epoch in range(num_epochs):
     # 訓練
     model.train()
@@ -135,7 +136,6 @@ for epoch in range(num_epochs):
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
-        print(outputs)
         validation_loss += outputs.loss.item()
 
     validation_loss /= len(validation_dataloader)
