@@ -13,3 +13,4 @@ models/*
 RakutenData/
 SentimentData/
 RawData/
+model.py
