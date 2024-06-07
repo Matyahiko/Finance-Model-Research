@@ -43,8 +43,9 @@ dataset = load_from_disk("research/SentimentData")
 #print(dataset)
 
 # デバイスの設定
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(YELLOW+f"device:{device}" + RESET)
+
 
 num_gpus = torch.cuda.device_count()
 print( YELLOW + f"Available GPUs: {num_gpus}" + RESET)
@@ -56,10 +57,10 @@ MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
 tokenizer = BertJapaneseTokenizer.from_pretrained(MODEL_NAME)
 model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  
 #モデルの並列化
-if num_gpus > 1:
-    model = nn.DataParallel(model)
+# if num_gpus > 1:
+#     model = nn.DataParallel(model)
+# model.to(device)
 model.to(device)
-
 
 #前処理
 #paddingとmaxlengthで挙動がおかしいのでDataCollatorを使用
@@ -153,7 +154,7 @@ for epoch in range(num_epochs):
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         attention_mask = batch["attention_mask"].to(device)
-        outputs = model.module(input_ids, attention_mask=attention_mask, labels=labels)
+        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
         loss = outputs.loss
         loss.backward()
         optimizer.step()
@@ -166,10 +167,9 @@ for epoch in range(num_epochs):
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
-        validation_loss += outputs.loss.item()
-
-    validation_loss /= len(validation_dataloader)
-    print(f"Epoch {epoch+1} - Validation Loss: {validation_loss:.6f}")
+        loss = outputs.loss
+        validation_loss /= len(validation_dataloader)
+        print(f"Epoch {epoch+1} - Validation Loss: {validation_loss:.6f}")
 
 # テストデータでの評価
 model.eval()
