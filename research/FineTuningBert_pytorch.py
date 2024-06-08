@@ -7,10 +7,25 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AdamW
 import os
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix,precision_score,recall_score,f1_score
 GREEN = '\033[32m'
 YELLOW = '\033[33m'
 RESET = '\033[0m'
+
+def calculate_metrics(true_labels, predictions):
+    cm = confusion_matrix(true_labels, predictions)
+    print("Confusion Matrix:")
+    print(cm)
+
+    precision = precision_score(true_labels, predictions)
+    recall = recall_score(true_labels, predictions)
+    f1 = f1_score(true_labels, predictions)
+
+    print(f"Precision: {precision:.3f}")
+    print(f"Recall: {recall:.3f}")
+    print(f"F1 Score: {f1:.3f}")
+
+    return cm, precision, recall, f1
 
 # # データセットの読み込み
 # dataset = load_dataset("llm-book/wrime-sentiment")
@@ -22,7 +37,7 @@ dataset = load_from_disk("research/SentimentData")
 #print(dataset)
 
 # デバイスの設定
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(YELLOW+f"device:{device}" + RESET)
 
 num_gpus = torch.cuda.device_count()
@@ -34,8 +49,9 @@ batch_size = 25
 MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
 tokenizer = BertJapaneseTokenizer.from_pretrained(MODEL_NAME)
 model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  
-if num_gpus > 1:
-    model = nn.DataParallel(model)
+# if num_gpus > 1:
+#     model = nn.DataParallel(model)
+# model.to(device)
 model.to(device)
 
 
@@ -124,7 +140,7 @@ if False :
 optimizer = AdamW(model.parameters(), lr=2e-5)
 
 # ファインチューニングのループ
-num_epochs = 10
+num_epochs = 3
 for epoch in range(num_epochs):
     # 訓練
     model.train()
@@ -132,7 +148,7 @@ for epoch in range(num_epochs):
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         attention_mask = batch["attention_mask"].to(device)
-        outputs = model.module(input_ids, attention_mask=attention_mask, labels=labels)
+        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
         loss = outputs.loss
         loss.backward()
         optimizer.step()
@@ -145,8 +161,9 @@ for epoch in range(num_epochs):
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
-        validation_loss += outputs.loss.item()
-
+        loss = outputs.loss
+        validation_loss += loss.item()
+    
     validation_loss /= len(validation_dataloader)
     print(f"Epoch {epoch+1} - Validation Loss: {validation_loss:.6f}")
 
@@ -165,11 +182,7 @@ with torch.no_grad():
 
 print("Test predictions:", predictions)
 
-# 混同行列の計算
-cm = confusion_matrix(true_labels, predictions)
-print("Confusion Matrix:")
-print(cm)
-
+cm, precision, recall, f1 = calculate_metrics(true_labels, predictions)
 
 # modelの保存
 if isinstance(model, nn.DataParallel):
