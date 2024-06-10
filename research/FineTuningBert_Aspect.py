@@ -19,17 +19,16 @@ def calculate_metrics(true_labels, predictions):
     cm = confusion_matrix(true_labels, predictions)
     print("Confusion Matrix:")
     print(cm)
-
-    precision = precision_score(true_labels, predictions)
-    recall = recall_score(true_labels, predictions)
-    f1 = f1_score(true_labels, predictions)
-
+    
+    precision = precision_score(true_labels, predictions, average='macro')
+    recall = recall_score(true_labels, predictions, average='macro')
+    f1 = f1_score(true_labels, predictions, average='macro')
+    
     print(f"Precision: {precision:.3f}")
     print(f"Recall: {recall:.3f}")
     print(f"F1 Score: {f1:.3f}")
-
+    
     return cm, precision, recall, f1
-
 
 def undersample_majority_class(df, label_column):
     # ラベルごとにデータをグループ化
@@ -49,24 +48,33 @@ def undersample_majority_class(df, label_column):
 
     return undersampled_df
 
+def create_labeled_dataframe(df):
+    labeled_df = pd.DataFrame(columns=["sentence", "label"])
+    
+    for _, row in df.iterrows():
+        if pd.notna(row["朝食_ポジティブ"]) and row["朝食_ポジティブ"] == 1:
+            label = 1
+        elif pd.notna(row["朝食_ネガティブ"]) and row["朝食_ネガティブ"] == 1:
+            label = 0
+        else:
+            label = 2
+            
+        new_row = pd.DataFrame({"sentence": [row["レビュー文"]], "label": [label]})
+        labeled_df = pd.concat([labeled_df, new_row], ignore_index=True)
+    
+    return labeled_df
+
+def tokenize_function(examples):
+    #前処理
+    #paddingとmaxlengthで挙動がおかしいのでDataCollatorを使用
+    tokenized_inputs = tokenizer(examples["sentence"], truncation=True, padding=True, max_length=512)
+    return {"input_ids": tokenized_inputs["input_ids"], "labels": examples["label"],"attention_mask": tokenized_inputs["attention_mask"]}
+
 # # データセットの読み込み
 #shift-jisでもutf-8でも読み込めないのでpandasで読み込む
 df = pd.read_csv("research/RakutenData/travel_aspect_sentiment/travel_aspect_sentiment.tsv", sep="\t",header=0)
 
-
-
-labeled_df = pd.DataFrame(columns=["sentence", "label"])
-for _, row in df.iterrows():
-    if pd.notna(row["朝食_ポジティブ"]) and row["朝食_ポジティブ"] == 1:
-        label = 1
-    elif pd.notna(row["朝食_ネガティブ"]) and row["朝食_ネガティブ"] == 1:
-        label = 0
-    else:
-        label = 2
-        
-    new_row = pd.DataFrame({"sentence": [row["レビュー文"]], "label": [label]})
-    labeled_df = pd.concat([labeled_df, new_row], ignore_index=True)
-    
+labeled_df = create_labeled_dataframe(df)
 
 print("Original Label Distribution:")
 label_counts = labeled_df["label"].value_counts()
@@ -75,8 +83,6 @@ print(label_percentages)
 
 # アンダーサンプリングの実行
 undersampled_df = undersample_majority_class(labeled_df, "label")
-print(undersampled_df.columns)
-
 
 print("\nUndersampled Label Distribution:")
 label_counts = undersampled_df["label"].value_counts()
@@ -117,12 +123,6 @@ model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=3)
 # model.to(device)
 model.to(device)
 
-
-#前処理
-#paddingとmaxlengthで挙動がおかしいのでDataCollatorを使用
-def tokenize_function(examples):
-    tokenized_inputs = tokenizer(examples["sentence"], truncation=True, padding=True, max_length=512)
-    return {"input_ids": tokenized_inputs["input_ids"], "labels": examples["label"],"attention_mask": tokenized_inputs["attention_mask"]}
 
 #datacollatorの設定
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
@@ -198,12 +198,14 @@ if False :
     print(i)       
         
 
-
 # オプティマイザーの設定
 optimizer = AdamW(model.parameters(), lr=2e-5)
 
+#損失関数の設定
+criterion = torch.nn.CrossEntropyLoss()
+
 # ファインチューニングのループ
-num_epochs = 3
+num_epochs = 20
 for epoch in range(num_epochs):
     # 訓練
     model.train()
@@ -211,12 +213,12 @@ for epoch in range(num_epochs):
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         attention_mask = batch["attention_mask"].to(device)
-        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-        loss = outputs.loss
+        outputs = model(input_ids, attention_mask=attention_mask)
+        logits = outputs.logits
+        loss = criterion(logits, labels)
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
-
+        
     # 検証
     model.eval()
     validation_loss = 0
@@ -224,7 +226,8 @@ for epoch in range(num_epochs):
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
-        loss = outputs.loss
+        logits = outputs.logits
+        loss = criterion(logits, labels)
         validation_loss += loss.item()
     
     validation_loss /= len(validation_dataloader)
