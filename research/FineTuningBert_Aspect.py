@@ -8,15 +8,17 @@ from torch.utils.data import DataLoader
 from transformers import AdamW
 import os
 import pandas as pd
-from sklearn.metrics import confusion_matrix,precision_score,recall_score,f1_score
+from sklearn.metrics import multilabel_confusion_matrix,precision_score,recall_score,f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
 GREEN = '\033[32m'
 YELLOW = '\033[33m'
 RESET = '\033[0m'
 
+
+
 def calculate_metrics(true_labels, predictions):
-    cm = confusion_matrix(true_labels, predictions)
+    cm = multilabel_confusion_matrix(true_labels, predictions)
     print("Confusion Matrix:")
     print(cm)
     
@@ -112,7 +114,7 @@ print(YELLOW+f"device:{device}" + RESET)
 num_gpus = torch.cuda.device_count()
 print( YELLOW + f"Available GPUs: {num_gpus}" + RESET)
 
-batch_size = 25
+batch_size = 50
 
 # BERTモデルとトークナイザーの読み込み
 MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
@@ -205,17 +207,19 @@ optimizer = AdamW(model.parameters(), lr=2e-5)
 criterion = torch.nn.CrossEntropyLoss()
 
 # ファインチューニングのループ
-num_epochs = 20
+num_epochs = 1
 for epoch in range(num_epochs):
     # 訓練
     model.train()
     for batch in train_dataloader:
+        optimizer.zero_grad()
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         attention_mask = batch["attention_mask"].to(device)
-        outputs = model(input_ids, attention_mask=attention_mask)
-        logits = outputs.logits
-        loss = criterion(logits, labels)
+        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+       # print(GREEN + f"outputs{outputs}"+RESET)
+        loss = outputs.loss
+       # print(GREEN + f"loss{loss}"+RESET)
         loss.backward()
         optimizer.step()
         
@@ -223,12 +227,12 @@ for epoch in range(num_epochs):
     model.eval()
     validation_loss = 0
     with torch.no_grad():
-        input_ids = batch["input_ids"].to(device)
-        labels = batch["labels"].to(device)
-        outputs = model(input_ids=input_ids, labels=labels)
-        logits = outputs.logits
-        loss = criterion(logits, labels)
-        validation_loss += loss.item()
+        for batch in validation_dataloader:
+            input_ids = batch["input_ids"].to(device)
+            labels = batch["labels"].to(device)
+            attention_mask = batch["attention_mask"].to(device)
+            outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+            validation_loss += outputs.loss.item()
     
     validation_loss /= len(validation_dataloader)
     print(f"Epoch {epoch+1} - Validation Loss: {validation_loss:.6f}")
@@ -242,7 +246,8 @@ with torch.no_grad():
     for batch in test_dataloader:
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
-        outputs = model(input_ids=input_ids, labels=labels)
+        attention_mask = batch["attention_mask"].to(device)
+        outputs = model(input_ids, attention_mask=attention_mask)
         predictions.extend(outputs.logits.argmax(dim=-1).tolist())
         true_labels.extend(labels.tolist())
 
