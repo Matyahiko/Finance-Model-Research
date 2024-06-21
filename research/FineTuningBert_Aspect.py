@@ -8,17 +8,24 @@ from torch.utils.data import DataLoader
 from transformers import AdamW
 import os
 import pandas as pd
-from sklearn.metrics import multilabel_confusion_matrix,precision_score,recall_score,f1_score
+from sklearn.metrics import confusion_matrix,precision_score,recall_score,f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
+
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
 GREEN = '\033[32m'
 YELLOW = '\033[33m'
 RESET = '\033[0m'
 
+from joblib import Memory
 
+cache_dir = './cache/finetuningbert'
+memory = Memory(cache_dir, verbose=0)
 
+@memory.cache
 def calculate_metrics(true_labels, predictions):
-    cm = multilabel_confusion_matrix(true_labels, predictions)
+    cm = confusion_matrix(true_labels, predictions)
     print("Confusion Matrix:")
     print(cm)
     
@@ -32,6 +39,7 @@ def calculate_metrics(true_labels, predictions):
     
     return cm, precision, recall, f1
 
+@memory.cache
 def undersample_majority_class(df, label_column):
     # ラベルごとにデータをグループ化
     label_groups = df.groupby(label_column)
@@ -50,22 +58,46 @@ def undersample_majority_class(df, label_column):
 
     return undersampled_df
 
+@memory.cache
 def create_labeled_dataframe(df):
+    """_summary_
+        1 1 = 0 朝食にポジティブとネガティブの評価が含まれている
+        1 0 = 1 朝食ポジティブ
+        0 1 = 2  朝食ネガティブ
+        0 0 = 3 朝食ニュートラル
+    """
     labeled_df = pd.DataFrame(columns=["sentence", "label"])
+    ###
+    df["朝食_ポジティブ"] = pd.to_numeric(df["朝食_ポジティブ"], errors="coerce")
+    df["朝食_ネガティブ"] = pd.to_numeric(df["朝食_ネガティブ"], errors="coerce")
     
     for _, row in df.iterrows():
-        if pd.notna(row["朝食_ポジティブ"]) and row["朝食_ポジティブ"] == 1:
-            label = 1
-        elif pd.notna(row["朝食_ネガティブ"]) and row["朝食_ネガティブ"] == 1:
+        if row["朝食_ポジティブ"] == 1 and row["朝食_ネガティブ"] == 1: 
             label = 0
-        else:
+        elif row["朝食_ポジティブ"] == 1 and pd.isna(row["朝食_ネガティブ"]):
+            label = 1
+        elif pd.isna(row["朝食_ポジティブ"]) and row["朝食_ネガティブ"] == 1:
             label = 2
-            
+        elif pd.isna(row["朝食_ポジティブ"]) and pd.isna(row["朝食_ネガティブ"]):
+            label = 3
+        
         new_row = pd.DataFrame({"sentence": [row["レビュー文"]], "label": [label]})
         labeled_df = pd.concat([labeled_df, new_row], ignore_index=True)
+    ###
+    # for _, row in df.iterrows():
+    #     if pd.notna(row["朝食_ポジティブ"]) and row["朝食_ポジティブ"] == 1:
+    #         label = 1
+    #     elif pd.notna(row["朝食_ネガティブ"]) and row["朝食_ネガティブ"] == 1:
+    #         label = 0
+    #     else:
+    #         label = 2
+            
+    #     new_row = pd.DataFrame({"sentence": [row["レビュー文"]], "label": [label]})
+    #     labeled_df = pd.concat([labeled_df, new_row], ignore_index=True)
     
     return labeled_df
 
+@memory.cache
 def tokenize_function(examples):
     #前処理
     #paddingとmaxlengthで挙動がおかしいのでDataCollatorを使用
@@ -77,7 +109,7 @@ def tokenize_function(examples):
 df = pd.read_csv("research/RakutenData/travel_aspect_sentiment/travel_aspect_sentiment.tsv", sep="\t",header=0)
 
 labeled_df = create_labeled_dataframe(df)
-
+print(labeled_df)
 print("Original Label Distribution:")
 label_counts = labeled_df["label"].value_counts()
 label_percentages = label_counts / len(labeled_df) * 100
@@ -109,17 +141,18 @@ dataset = DatasetDict({
 
 # デバイスの設定
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#device = "cpu"
 print(YELLOW+f"device:{device}" + RESET)
 
 num_gpus = torch.cuda.device_count()
 print( YELLOW + f"Available GPUs: {num_gpus}" + RESET)
 
-batch_size = 50
+batch_size = 20
 
 # BERTモデルとトークナイザーの読み込み
 MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
 tokenizer = BertJapaneseTokenizer.from_pretrained(MODEL_NAME)
-model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=3)  
+model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=4)  
 # if num_gpus > 1:
 #     model = nn.DataParallel(model)
 # model.to(device)
@@ -207,7 +240,7 @@ optimizer = AdamW(model.parameters(), lr=2e-5)
 criterion = torch.nn.CrossEntropyLoss()
 
 # ファインチューニングのループ
-num_epochs = 1
+num_epochs = 2
 for epoch in range(num_epochs):
     # 訓練
     model.train()
@@ -258,5 +291,5 @@ cm, precision, recall, f1 = calculate_metrics(true_labels, predictions)
 # modelの保存
 if isinstance(model, nn.DataParallel):
     model = model.module
-os.makedirs("research/AspectBertModel", exist_ok=True)
-model.save_pretrained("research/AspectBertModel")
+os.makedirs("research/AspectBertModel3Label", exist_ok=True)
+model.save_pretrained("research/AspectBertModel3Label")

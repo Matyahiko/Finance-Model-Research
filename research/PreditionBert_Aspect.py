@@ -3,12 +3,16 @@ from datasets import load_dataset, load_from_disk, Dataset, DatasetDict
 import torch
 from torch.utils.data import DataLoader
 import pandas as pd
-from sklearn.metrics import multilabel_confusion_matrix, precision_score, recall_score, f1_score
+from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
+from joblib import Memory
+
+cache_dir = './cache/bert1'
+memory = Memory(cache_dir, verbose=0)
 
 def calculate_metrics(true_labels, predictions):
-    cm = multilabel_confusion_matrix(true_labels, predictions)
+    cm = confusion_matrix(true_labels, predictions)
     print("Confusion Matrix:")
     print(cm)
     
@@ -22,6 +26,7 @@ def calculate_metrics(true_labels, predictions):
     
     return cm, precision, recall, f1
 
+@memory.cache
 def undersample_majority_class(df, label_column):
     label_groups = df.groupby(label_column)
     min_samples = min(label_groups.size())
@@ -31,7 +36,7 @@ def undersample_majority_class(df, label_column):
         undersampled_groups.append(undersampled_group)
     undersampled_df = pd.concat(undersampled_groups)
     return undersampled_df
-
+@memory.cache
 def create_labeled_dataframe(df):
     labeled_df = pd.DataFrame(columns=["sentence", "label"])
     for _, row in df.iterrows():
@@ -44,10 +49,11 @@ def create_labeled_dataframe(df):
         new_row = pd.DataFrame({"sentence": [row["レビュー文"]], "label": [label]})
         labeled_df = pd.concat([labeled_df, new_row], ignore_index=True)
     return labeled_df
-
+@memory.cache
 def tokenize_function(examples):
     tokenized_inputs = tokenizer(examples["sentence"], truncation=True, padding=True, max_length=512)
     return {"input_ids": tokenized_inputs["input_ids"], "labels": examples["label"], "attention_mask": tokenized_inputs["attention_mask"]}
+
 
 df = pd.read_csv("research/RakutenData/travel_aspect_sentiment/travel_aspect_sentiment.tsv", sep="\t", header=0)
 labeled_df = create_labeled_dataframe(df)
