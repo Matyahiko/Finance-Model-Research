@@ -40,6 +40,7 @@ dataset = load_from_disk("research/SentimentData")
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(YELLOW+f"device:{device}" + RESET)
 
+
 num_gpus = torch.cuda.device_count()
 print( YELLOW + f"Available GPUs: {num_gpus}" + RESET)
 
@@ -49,11 +50,14 @@ batch_size = 25
 MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
 tokenizer = BertJapaneseTokenizer.from_pretrained(MODEL_NAME)
 model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  
+<<<<<<< HEAD:research/FineTuningBert_Sentiment.py
+=======
+#モデルの並列化
+>>>>>>> 53dba8acb62cd3a62925dbf65f57c2d8795e4661:research/FineTuningBert_pytorch.py
 # if num_gpus > 1:
 #     model = nn.DataParallel(model)
 # model.to(device)
 model.to(device)
-
 
 #前処理
 #paddingとmaxlengthで挙動がおかしいのでDataCollatorを使用
@@ -134,13 +138,16 @@ if True :
         
     print(i)       
         
-
-
+        
 # オプティマイザーの設定
 optimizer = AdamW(model.parameters(), lr=2e-5)
 
 # ファインチューニングのループ
+<<<<<<< HEAD:research/FineTuningBert_Sentiment.py
 num_epochs = 3
+=======
+num_epochs = 15
+>>>>>>> 53dba8acb62cd3a62925dbf65f57c2d8795e4661:research/FineTuningBert_pytorch.py
 for epoch in range(num_epochs):
     # 訓練
     model.train()
@@ -162,10 +169,15 @@ for epoch in range(num_epochs):
         labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
         loss = outputs.loss
+<<<<<<< HEAD:research/FineTuningBert_Sentiment.py
         validation_loss += loss.item()
     
     validation_loss /= len(validation_dataloader)
     print(f"Epoch {epoch+1} - Validation Loss: {validation_loss:.6f}")
+=======
+        validation_loss /= len(validation_dataloader)
+        print(f"Epoch {epoch+1} - Validation Loss: {validation_loss:.6f}")
+>>>>>>> 53dba8acb62cd3a62925dbf65f57c2d8795e4661:research/FineTuningBert_pytorch.py
 
 # テストデータでの評価
 model.eval()
@@ -182,9 +194,22 @@ with torch.no_grad():
 
 print("Test predictions:", predictions)
 
+<<<<<<< HEAD:research/FineTuningBert_Sentiment.py
 cm, precision, recall, f1 = calculate_metrics(true_labels, predictions)
+=======
+# 混同行列の計算
+cm = confusion_matrix(true_labels, predictions)
+print("Confusion Matrix:")
+print(cm)
+
+precision, recall, f1 = calculate_metrics(true_labels, predictions)
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
+>>>>>>> 53dba8acb62cd3a62925dbf65f57c2d8795e4661:research/FineTuningBert_pytorch.py
 
 # modelの保存
+# DataParallelを使っている場合は、model.moduleでラップされているのでラップを解いて保存
 if isinstance(model, nn.DataParallel):
     model = model.module
 os.makedirs("research/SentimentBertModel", exist_ok=True)
