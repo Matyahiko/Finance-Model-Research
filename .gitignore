@@ -17,5 +17,6 @@ crypto/models/*
 db.sqlite3
 research/SentimentBertModel/model.safetensors
 research/AspectBertModel/model.safetensors
+research/AspectBertModel3Label/model.safetensors
 cache/
 
