@@ -3,147 +3,136 @@ import pandas as pd
 import numpy as np
 import talib
 from sklearn.model_selection import train_test_split
-from statsmodels.stats.outliers_influence import variance_inflation_factor
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-def vis_distribution(df, feature):
-    fig, ax = plt.subplots(figsize=(8, 4))
-    
-    data = df[feature]
-    ax.hist(data, bins=30, edgecolor='black')
-    ax.set_title(f"Distribution of {feature}")
-    ax.set_xlabel(feature)
-    ax.set_ylabel("Frequency")
-        
-    plt.tight_layout()
-        
+def visualize_distribution(df, feature):
+    """
+    データフレームの特定の列の分布を可視化する関数
+
+    Args:
+        df (pandas.DataFrame): 分布を可視化するデータフレーム
+        feature (str): 分布を可視化する列名
+    """
+    plt.figure(figsize=(8, 4))
+    plt.hist(df[feature], bins=30, edgecolor='black')
+    plt.title(f"Distribution of {feature}")
+    plt.xlabel(feature)
+    plt.ylabel("Frequency")
     plt.tight_layout()
     plt.savefig(f"crypto/fig/{feature}_distribution.png")  
 
-def check_multicollinearity(train_data, test_data, threshold=0.7):
-   # トレインデータの相関係数行列を計算
-   corr_matrix = train_data.corr()
+def remove_multicollinearity(train_data, test_data, threshold=0.7):
+    """
+    多重共線性を示す特徴量を削除する関数
 
-   # 上三角行列を取得
-   upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    Args:
+        train_data (pandas.DataFrame): 学習データのデータフレーム
+        test_data (pandas.DataFrame): テストデータのデータフレーム
+        threshold (float, optional): 多重共線性の閾値. Defaults to 0.7.
 
-   # 閾値を超える相関係数を持つ説明変数のペアを特定
-   multicollinearity_pairs = []
-   columns_to_drop = []
-   for i in range(len(upper_tri.columns)):
-       for j in range(i+1, len(upper_tri.columns)):
-           if abs(upper_tri.iloc[i, j]) > threshold:
-               multicollinearity_pairs.append((upper_tri.index[i], upper_tri.columns[j]))
-               columns_to_drop.append(upper_tri.columns[j])  # 削除する列を追加
+    Returns:
+        tuple: 多重共線性が認められる特徴量を削除後の学習データとテストデータのタプル
+    """
+    corr_matrix = train_data.corr()
+    upper_tri = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    columns_to_drop = [column for column in upper_tri.columns if any(abs(upper_tri[column]) > threshold)]
 
-   # 重複する列名を削除
-   columns_to_drop = list(set(columns_to_drop))
+    train_data_cleaned = train_data.drop(columns=columns_to_drop)
+    test_data_cleaned = test_data.drop(columns=columns_to_drop)
 
-   # トレインデータとテストデータから特徴量の列を削除
-   train_data_cleaned = train_data.drop(columns=columns_to_drop)
-   test_data_cleaned = test_data.drop(columns=columns_to_drop)
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', cbar_kws={'label': 'Correlation'})
+    plt.title('Correlation Matrix Heatmap')
+    plt.tight_layout()
+    plt.savefig('crypto/fig/correlation_heatmap.png')
+    plt.close()
 
-   # ヒートマップを作成
-   plt.figure(figsize=(10, 8))
-   sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', fmt='.2f', cbar_kws={'label': 'Correlation'})
-   plt.title('Correlation Matrix Heatmap')
-   plt.tight_layout()
+    return train_data_cleaned, test_data_cleaned
 
-   # ヒートマップを保存
-   plt.savefig('crypto/fig/correlation_heatmap.png')
-   plt.close()
+def calculate_target_variable(df, short_period=5, long_period=20, rsi_buy_threshold=30, rsi_sell_threshold=70, profit_threshold=0.005):
+    """
+    各時間ステップでのエントリールールとその利益率を計算する関数
 
-   return train_data_cleaned, test_data_cleaned
+    Args:
+        df (pandas.DataFrame): 計算対象のデータフレーム
+        short_period (int, optional): 短期移動平均線の期間. Defaults to 5.
+        long_period (int, optional): 長期移動平均線の期間. Defaults to 20.
+        rsi_buy_threshold (int, optional): RSIの買いシグナルの閾値. Defaults to 30.
+        rsi_sell_threshold (int, optional): RSIの売りシグナルの閾値. Defaults to 70.
+        profit_threshold (float, optional): 利益率の閾値. Defaults to 0.005.
 
-# JSONファイルを読み込む
-with open('raw_data/btc/BTC-JPY_1min_2021-2024.json', 'r') as f:
-   data = json.load(f)
+    Returns:
+        pandas.DataFrame: エントリールールとその利益率を追加したデータフレーム
+    """
+    df["short_mavg"] = talib.SMA(df["close_price"], timeperiod=short_period)
+    df["long_mavg"] = talib.SMA(df["close_price"], timeperiod=long_period)
+    df["ma_cross"] = np.where((df["short_mavg"].shift(1) < df["long_mavg"].shift(1)) & (df["short_mavg"] > df["long_mavg"]), 1,
+                              np.where((df["short_mavg"].shift(1) > df["long_mavg"].shift(1)) & (df["short_mavg"] < df["long_mavg"]), -1, 0))
 
-# データフレームを作成
+    df["rsi_bb_signal"] = np.where((df["RSI"] < rsi_buy_threshold) & (df["close_price"] < df["lower_band"]), 1,
+                                   np.where((df["RSI"] > rsi_sell_threshold) & (df["close_price"] > df["upper_band"]), -1, 0))
+
+    df["macd_cross"] = np.where((df["macd"].shift(1) < df["macdsignal"].shift(1)) & (df["macd"] > df["macdsignal"]), 1,
+                                np.where((df["macd"].shift(1) > df["macdsignal"].shift(1)) & (df["macd"] < df["macdsignal"]), -1, 0))
+
+    df["return"] = df["close_price"].pct_change()
+    df["target"] = np.where((df["ma_cross"] == 1) | (df["rsi_bb_signal"] == 1) | (df["macd_cross"] == 1), 1, 0)
+    df["target"] = np.where((df["ma_cross"] == -1) | (df["rsi_bb_signal"] == -1) | (df["macd_cross"] == -1), -1, df["target"])
+    df["target"] = np.where((df["target"] == 1) & (df["return"] >= profit_threshold), 1,
+                            np.where((df["target"] == -1) & (df["return"] < 0), 1, df["target"]))
+
+    return df
+
+# JSONファイルからデータを読み込む
+with open('RawData/btc/BTC-JPY_15min_2021-2024.json', 'r') as f:
+    data = json.load(f)
+
+# データフレームに変換
 df = pd.DataFrame(data)
 
-# 日時をパースして設定
+# 日時データをdatetime型に変換
 df['close_time'] = pd.to_datetime(df['close_time'], format='%Y/%m/%d %H:%M:%S')
 
-# 分割するデータポイント数を指定
-split_point = 1000  # 例として100000を指定
-
-# 指定したデータポイント数で分割
+# データを分割
+split_point = 1000  
 df_split = df[:split_point]
-
 print(f"全データ数: {len(df)}")
 print(f"分割後のデータ数: {len(df_split)}")
 
-# 日時をパースして設定
+# 日時データをインデックスに設定
 df_split["close_time"] = pd.to_datetime(df_split["close_time"], unit="ms")
 df_split.set_index("close_time", inplace=True)
 
-# テクニカル指標を計算
+# 各価格データを取得
 open_price, high_price, low_price, close_price = df_split["open_price"], df_split["high_price"], df_split["low_price"], df_split["close_price"]
 
-# 移動平均
-df_split["SMA5"] = talib.SMA(close_price, timeperiod=5)
-df_split["SMA10"] = talib.SMA(close_price, timeperiod=10)
-df_split["SMA20"] = talib.SMA(close_price, timeperiod=20)
-df_split["SMA50"] = talib.SMA(close_price, timeperiod=50)
-df_split["SMA100"] = talib.SMA(close_price, timeperiod=100)
-df_split["SMA200"] = talib.SMA(close_price, timeperiod=200)
-
-# ボリンジャーバンド
+# 特徴量の計算
+df_split["SMA5"], df_split["SMA10"], df_split["SMA20"] = talib.SMA(close_price, 5), talib.SMA(close_price, 10), talib.SMA(close_price, 20)
+df_split["SMA50"], df_split["SMA100"], df_split["SMA200"] = talib.SMA(close_price, 50), talib.SMA(close_price, 100), talib.SMA(close_price, 200)
 df_split["upper_band"], df_split["middle_band"], df_split["lower_band"] = talib.BBANDS(close_price, timeperiod=20)
-
-# MACD
 df_split["macd"], df_split["macdsignal"], df_split["macdhist"] = talib.MACD(close_price, fastperiod=12, slowperiod=26, signalperiod=9)
-
-# MACDクロスを計算
-df_split["macd_cross"] = np.where((df_split["macd"].shift(1) < df_split["macdsignal"].shift(1)) & (df_split["macd"] > df_split["macdsignal"]), 1, 0)
-df_split["macd_cross"] = np.where((df_split["macd"].shift(1) > df_split["macdsignal"].shift(1)) & (df_split["macd"] < df_split["macdsignal"]), -1, df_split["macd_cross"])
-
-# RSI
 df_split["RSI"] = talib.RSI(close_price, timeperiod=14)
-
-# ストキャスティクス
 df_split["slowk"], df_split["slowd"] = talib.STOCH(high_price, low_price, close_price, fastk_period=5, slowk_period=3, slowk_matype=0, slowd_period=3, slowd_matype=0)
-
-# ADX
 df_split["ADX"] = talib.ADX(high_price, low_price, close_price, timeperiod=14)
-
-# CCI
 df_split["CCI"] = talib.CCI(high_price, low_price, close_price, timeperiod=14)
-
-# ATR
 df_split["ATR"] = talib.ATR(high_price, low_price, close_price, timeperiod=14)
-
-# ROC
 df_split["ROC"] = talib.ROC(close_price, timeperiod=10)
-
-# Williams %R
 df_split["Williams %R"] = talib.WILLR(high_price, low_price, close_price, timeperiod=14)
 
-# 値上がり率（単純収益率）を計算
-df_split["return"] = df_split["close_price"].pct_change()
+# エントリールールとその利益率の計算
+df_split = calculate_target_variable(df_split)
 
-#debug
-df_split["return"].to_csv("crypto/procesed/return.csv")
+# データの分布を可視化
+visualize_distribution(df_split, "return")
+visualize_distribution(df_split, "target")
 
-#df_split["return"]の中央値を計算
-median = df_split["return"].median()
-
-threshold = median
-#threshold = 0.0005
-df_split["label"] = np.where(df_split["return"] >= threshold, 1, 0)
-
-vis_distribution(df_split,"return")
-vis_distribution(df_split,"label")
-
+# 不要な列を削除
 df_split.drop("return", axis=1, inplace=True)
-
-# 欠損値を削除
 df_split.dropna(inplace=True)
 
 # 学習データとテストデータに分割
-train_size = 0.8  # 学習データの割合を指定
+train_size = 0.8
 train_df = df_split[:int(len(df_split) * train_size)]
 test_df = df_split[int(len(df_split) * train_size):]
 
@@ -151,16 +140,13 @@ print(f"全データ数: {df_split.shape}")
 print(f"学習データ数: {train_df.shape}")
 print(f"テストデータ数: {test_df.shape}")
 
-
-
-# トレインデータのみで共線性チェックを行い、同じ特徴量をトレインデータとテストデータから削除
-train_df_cleaned, test_df_cleaned = check_multicollinearity(train_df, test_df)
+# 多重共線性が認められる特徴量を削除
+train_df_cleaned, test_df_cleaned = remove_multicollinearity(train_df, test_df)
 
 print(f"多重共線性が認められる特徴量を削除後の学習データ数: {train_df_cleaned.shape}")
 print(f"多重共線性が認められる特徴量を削除後のテストデータ数: {test_df_cleaned.shape}")
 print(f"削除された特徴量: {set(train_df.columns) - set(train_df_cleaned.columns)}")
-print(f"閾値:{threshold:.6f}")
 
-# CSVファイルに出力
-train_df_cleaned.to_csv("/root/src/crypto/procesed/btc_1min_technical_analysis_train.csv")
-test_df_cleaned.to_csv("/root/src/crypto/procesed/btc_1min_technical_analysis_test.csv")
+# 学習データとテストデータを保存
+train_df_cleaned.to_csv("RawData/btc/btc_15min_technical_analysis_train.csv")
+test_df_cleaned.to_csv("RawData/btc/btc_15min_technical_analysis_test.csv")
