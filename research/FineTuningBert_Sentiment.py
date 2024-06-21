@@ -3,10 +3,29 @@ from xml.dom.minidom import Document
 from transformers import BertJapaneseTokenizer, BertForSequenceClassification,DataCollatorWithPadding
 from datasets import load_dataset, load_from_disk
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader
 from transformers import AdamW
 import os
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix,precision_score,recall_score,f1_score
+GREEN = '\033[32m'
+YELLOW = '\033[33m'
+RESET = '\033[0m'
+
+def calculate_metrics(true_labels, predictions):
+    cm = confusion_matrix(true_labels, predictions)
+    print("Confusion Matrix:")
+    print(cm)
+
+    precision = precision_score(true_labels, predictions)
+    recall = recall_score(true_labels, predictions)
+    f1 = f1_score(true_labels, predictions)
+
+    print(f"Precision: {precision:.3f}")
+    print(f"Recall: {recall:.3f}")
+    print(f"F1 Score: {f1:.3f}")
+
+    return cm, precision, recall, f1
 
 # # データセットの読み込み
 # dataset = load_dataset("llm-book/wrime-sentiment")
@@ -18,16 +37,27 @@ dataset = load_from_disk("research/SentimentData")
 #print(dataset)
 
 # デバイスの設定
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("device:", device)
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print(YELLOW+f"device:{device}" + RESET)
+
+
+num_gpus = torch.cuda.device_count()
+print( YELLOW + f"Available GPUs: {num_gpus}" + RESET)
+
 batch_size = 25
 
 # BERTモデルとトークナイザーの読み込み
 MODEL_NAME = "sonoisa/sentence-bert-base-ja-mean-tokens-v2"
 tokenizer = BertJapaneseTokenizer.from_pretrained(MODEL_NAME)
 model = BertForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)  
+<<<<<<< HEAD:research/FineTuningBert_Sentiment.py
+=======
+#モデルの並列化
+>>>>>>> 53dba8acb62cd3a62925dbf65f57c2d8795e4661:research/FineTuningBert_pytorch.py
+# if num_gpus > 1:
+#     model = nn.DataParallel(model)
+# model.to(device)
 model.to(device)
-
 
 #前処理
 #paddingとmaxlengthで挙動がおかしいのでDataCollatorを使用
@@ -59,10 +89,8 @@ test_dataloader = DataLoader(encoded_dataset["test"], batch_size=batch_size, shu
 #DebugInfo
 #torchの形状を変更したので、一部機能しない
 #トークンの復元チェックは機能していないけど、想定通りの動作なので放置
-if False :
+if True :
     sample_num = 1
-    GREEN = '\033[32m'
-    RESET = '\033[0m'
     print(GREEN + f"encoded_dataset sentence sample{sample_num}: \n" + str(encoded_dataset["train"]["input_ids"][sample_num]) +"\n" + RESET)
     print(GREEN + f"decoded_dataset sentence sample{sample_num}: \n" + tokenizer.decode(encoded_dataset["train"]["input_ids"][sample_num])+"\n" + RESET)
 
@@ -110,20 +138,24 @@ if False :
         
     print(i)       
         
-
-
+        
 # オプティマイザーの設定
 optimizer = AdamW(model.parameters(), lr=2e-5)
 
 # ファインチューニングのループ
-num_epochs = 10
+<<<<<<< HEAD:research/FineTuningBert_Sentiment.py
+num_epochs = 3
+=======
+num_epochs = 15
+>>>>>>> 53dba8acb62cd3a62925dbf65f57c2d8795e4661:research/FineTuningBert_pytorch.py
 for epoch in range(num_epochs):
     # 訓練
     model.train()
     for batch in train_dataloader:
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
-        outputs = model(input_ids=input_ids, labels=labels)
+        attention_mask = batch["attention_mask"].to(device)
+        outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
         loss = outputs.loss
         loss.backward()
         optimizer.step()
@@ -136,10 +168,16 @@ for epoch in range(num_epochs):
         input_ids = batch["input_ids"].to(device)
         labels = batch["labels"].to(device)
         outputs = model(input_ids=input_ids, labels=labels)
-        validation_loss += outputs.loss.item()
-
+        loss = outputs.loss
+<<<<<<< HEAD:research/FineTuningBert_Sentiment.py
+        validation_loss += loss.item()
+    
     validation_loss /= len(validation_dataloader)
     print(f"Epoch {epoch+1} - Validation Loss: {validation_loss:.6f}")
+=======
+        validation_loss /= len(validation_dataloader)
+        print(f"Epoch {epoch+1} - Validation Loss: {validation_loss:.6f}")
+>>>>>>> 53dba8acb62cd3a62925dbf65f57c2d8795e4661:research/FineTuningBert_pytorch.py
 
 # テストデータでの評価
 model.eval()
@@ -156,12 +194,23 @@ with torch.no_grad():
 
 print("Test predictions:", predictions)
 
+<<<<<<< HEAD:research/FineTuningBert_Sentiment.py
+cm, precision, recall, f1 = calculate_metrics(true_labels, predictions)
+=======
 # 混同行列の計算
 cm = confusion_matrix(true_labels, predictions)
 print("Confusion Matrix:")
 print(cm)
 
+precision, recall, f1 = calculate_metrics(true_labels, predictions)
+print(f"Precision: {precision:.4f}")
+print(f"Recall: {recall:.4f}")
+print(f"F1 Score: {f1:.4f}")
+>>>>>>> 53dba8acb62cd3a62925dbf65f57c2d8795e4661:research/FineTuningBert_pytorch.py
 
 # modelの保存
+# DataParallelを使っている場合は、model.moduleでラップされているのでラップを解いて保存
+if isinstance(model, nn.DataParallel):
+    model = model.module
 os.makedirs("research/SentimentBertModel", exist_ok=True)
 model.save_pretrained("research/SentimentBertModel")
