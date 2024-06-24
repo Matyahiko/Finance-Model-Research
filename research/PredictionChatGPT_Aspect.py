@@ -25,7 +25,7 @@ class OpenAIChatbot:
     """OpenAIのChatbot APIをラップするクラス。"""
     request_count = 0
 
-    def __init__(self, api_key, model="gpt-4o-2024-05-13", temperature=0, max_tokens=10, top_p=0.4):
+    def __init__(self, api_key, model="gpt-4-turbo-preview", temperature=0, max_tokens=10, top_p=0.4):
         #gpt-4o-2024-05-13
         #gpt-4-turbo-preview
         self.api_key = api_key
@@ -153,7 +153,7 @@ def MakePrompt(string):
     
     return system_prompt1
 
-#@memory.cache
+@memory.cache
 def undersample_majority_class(df, label_column):
     # ラベルごとにデータをグループ化
     label_groups = df.groupby(label_column)
@@ -171,7 +171,7 @@ def undersample_majority_class(df, label_column):
     undersampled_df = pd.concat(undersampled_groups)
 
     return undersampled_df
-#@memory.cache
+@memory.cache
 def create_labeled_dataframe(df):
     """_summary_
         1 1 = 1 朝食にポジティブとネガティブの評価が含まれている
@@ -211,7 +211,7 @@ def create_labeled_dataframe(df):
     #     labeled_df = pd.concat([labeled_df, new_row], ignore_index=True)
     
     return labeled_df
-#@memory.cache
+@memory.cache
 def ReadReviewAndPreprocess(n):
     """レビューを読み込む。"""
     # # データセットの読み込み

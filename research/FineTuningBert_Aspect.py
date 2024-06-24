@@ -183,7 +183,7 @@ test_dataloader = DataLoader(encoded_dataset["test"], batch_size=batch_size, shu
 #DebugInfo
 #torchの形状を変更したので、一部機能しない
 #トークンの復元チェックは機能していないけど、想定通りの動作なので放置
-if False :
+if True :
     sample_num = 1
     print(GREEN + f"encoded_dataset sentence sample{sample_num}: \n" + str(encoded_dataset["train"]["input_ids"][sample_num]) +"\n" + RESET)
     print(GREEN + f"decoded_dataset sentence sample{sample_num}: \n" + tokenizer.decode(encoded_dataset["train"]["input_ids"][sample_num])+"\n" + RESET)
