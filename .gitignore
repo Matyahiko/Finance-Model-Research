@@ -15,8 +15,8 @@ SentimentData/
 RawData/
 crypto/models/*
 db.sqlite3
-research/SentimentBertModel/model.safetensors
-research/AspectBertModel/model.safetensors
-research/AspectBertModel3Label/model.safetensors
+research_AspectR/SentimentBertModel/model.safetensors
+research_AspectR/AspectBertModel/model.safetensors
+research_AspectR/AspectBertModel3Label/model.safetensors
 cache/
 
