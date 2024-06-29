@@ -1,11 +1,12 @@
 version: '3.8'
 
 services:
-  finance:
+  Python:
     ports: 
+    #Container:80 local80090
       - "8090:80"
     build:
-      context: ./environment/standard
+      context: ./environment/Python
       dockerfile: Dockerfile
       args:
         - HTTP_PROXY=${HTTP_PROXY}
@@ -18,6 +19,7 @@ services:
     env_file:
       - .env
     volumes:
+    #Container:/root/src local:../
       - ../:/root/src
     working_dir: /root/src
     runtime: nvidia

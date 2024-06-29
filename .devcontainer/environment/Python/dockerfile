@@ -30,7 +30,14 @@ RUN poetry config virtualenvs.create false
 ##
 ENV LD_LIBRARY_PATH /usr/local/cuda/lib64:${LD_LIBRARY_PATH}
 
-
+# TA-Libのビルドとインストール
+RUN tar -xzf /root/src/ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure --prefix=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib
 
 
 
