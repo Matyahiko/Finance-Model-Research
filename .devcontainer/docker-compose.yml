@@ -1,17 +1,17 @@
 version: '3.8'
 
 services:
-  Python:
+  python:
     ports: 
-    #Container:80 local80090
-      - "8090:80"
+    #Container:80 local:8090
+      - "8100:80"
     build:
-      context: ./environment/Python
+      context: ./environment/MoriMori
       dockerfile: Dockerfile
       args:
         - HTTP_PROXY=${HTTP_PROXY}
         - HTTPS_PROXY=${HTTPS_PROXY}
-    container_name: Finance-Model-Research
+    container_name: MoriMoriEnvironment
     environment:
       - http_proxy=$HTTP_PROXY
       - https_proxy=$HTTPS_PROXY
@@ -34,3 +34,26 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+  # Rust:
+  #   build:
+  #     context: ./environment/Rust
+  #     dockerfile: Dockerfile
+  #     args:
+  #       - HTTP_PROXY=${HTTP_PROXY}
+  #       - HTTPS_PROXY=${HTTPS_PROXY}
+  #   container_name: Rust-Service
+  #   environment:
+  #     - http_proxy=$HTTP_PROXY
+  #     - https_proxy=$HTTPS_PROXY
+  #     - TZ=Asia/Tokyo
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ../:/root/src
+  #   working_dir: /root/src
+  #   tty: true
+  #   restart: "no"
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 8g
