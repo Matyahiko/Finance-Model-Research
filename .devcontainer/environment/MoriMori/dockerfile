@@ -1,0 +1,66 @@
+FROM pytorch/pytorch:2.2.1-cuda12.1-cudnn8-devel
+USER root
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV http_proxy=$HTTP_PROXY
+ENV https_proxy=$HTTPS_PROXY
+
+
+RUN mkdir -p /root/src
+
+
+WORKDIR /root/src
+
+# RUN curl -sSL https://install.python-poetry.org | python -
+# RUN poetry config virtualenvs.create false
+# WORKDIR /root/src/.devcontainer/environment/chroma/
+# RUN poetry install 
+
+#add rust
+RUN apt-get update && apt-get install -y \
+    zip \
+    unzip \
+    git \
+    curl \
+    tmux \
+    valgrind \
+    libssl-dev \
+    pkg-config
+
+RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && apt-get install git-lfs && git lfs install
+
+
+RUN curl -sSL https://install.python-poetry.org | python3 -  
+ENV PATH="/root/.local/bin:$PATH"
+#WORKDIR /root/src/.devcontainer/environment/llama2/
+#RUN poetry install
+#RUN poetry --version
+RUN poetry config virtualenvs.create false
+##
+ENV LD_LIBRARY_PATH /usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+
+# TA-Libのビルドとインストール
+# TA-Libのインストール
+COPY ta-lib-0.4.0-src.tar.gz /root/src/
+RUN tar -xzf ta-lib-0.4.0-src.tar.gz && \
+    cd ta-lib && \
+    ./configure --prefix=/usr && \
+    make && \
+    make install && \
+    cd .. && \
+    rm -rf ta-lib ta-lib-0.4.0-src.tar.gz
+
+
+
+# Rustのインストール
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Rustツールチェーンをセットアップ
+RUN rustup default stable && \
+    rustup component add rustfmt clippy
+
+# 基本的なRust開発ツールをインストール
+RUN cargo install cargo-edit cargo-watch
