@@ -3,7 +3,7 @@ version: '3.8'
 services:
   python:
     ports: 
-    #Container:80 local:8090
+    #Container:80 local:8100
       - "8100:80"
     build:
       context: ./environment/MoriMori
