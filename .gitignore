@@ -19,4 +19,6 @@ research_AspectR/SentimentBertModel/model.safetensors
 research_AspectR/AspectBertModel/model.safetensors
 research_AspectR/AspectBertModel3Label/model.safetensors
 cache/
+*.h5
+
 
