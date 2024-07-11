@@ -85,7 +85,7 @@ def load_data_from_hdf5(filename):
 filename = "BTC-JPY_15min_2021-2024"
 train_df, val_df, test_df = load_data_from_hdf5(filename)
 
-sequence_length = 12
+sequence_length = 24
 num_features = len(train_df.columns)-1
 batch_size = 20
 
