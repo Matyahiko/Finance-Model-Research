@@ -150,21 +150,44 @@ train_loader, val_loader, test_loader = data_loader(
 
 #debug
 if True:
-    print(f"num_features : {num_features}")
-        # データローダーからイテレータを取得
+    print(GREEN + f"num_features : {num_features}" + RESET)
+
+    # データローダーからイテレータを取得
     loader_iter = iter(train_loader)
-    print(f"DataLoader Info:")
-    print(f"Batch size: {test_loader.batch_size}")
-    print(f"Number of batches: {len(test_loader)}")
+
+    print(GREEN + f"DataLoader Info:" + RESET)
+    print(GREEN + f"Batch size: {test_loader.batch_size}" + RESET)
+    print(GREEN + f"Number of batches: {len(test_loader)}" + RESET)
+
     first_batch = next(loader_iter)
     features, labels = first_batch
-    print(f"\nFirst batch shape: {features.shape}")
-    print(f"Data type: {features.dtype}")
+
+    print(GREEN + f"\nFirst batch shape: {features.shape}" + RESET)
+    print(GREEN + f"Data type: {features.dtype}" + RESET)
+
     # サンプルデータの表示
-    print("\nSample data (first 5 elements of first item in batch):")
-    print(features[0, :5])
-    print("label")
-    print(labels)
+    print(GREEN + "\nSample data (first 5 elements of first item in batch):" + RESET)
+    print(GREEN + f"{features[0, :5]}" + RESET)
+
+    print(GREEN + "label" + RESET)
+    print(GREEN + f"{labels}" + RESET)
+    
+    train_data, train_labels = get_full_data(train_loader)
+    val_data, val_labels = get_full_data(val_loader)
+    
+    print(GREEN + f"Train data shape: {train_data.shape}" + RESET)
+    print(GREEN + f"Train labels shape: {train_labels.shape}" + RESET)
+    print(GREEN + f"Val data shape: {val_data.shape}" + RESET)
+    print(GREEN + f"Val labels shape: {val_labels.shape}" + RESET)
+    print(GREEN + f"Train data type: {train_data.dtype}" + RESET)
+    print(GREEN + f"Train labels type: {train_labels.dtype}" + RESET)
+    print(GREEN + f"Train data range: {train_data.min()} - {train_data.max()}" + RESET)
+    print(GREEN + f"Train labels range: {train_labels.min()} - {train_labels.max()}" + RESET)
+    print(GREEN + f"Infinite values in train data: {np.isinf(train_data).any()}" + RESET)
+    print(GREEN + f"NaN values in train data: {np.isnan(train_data).any()}" + RESET)
+    print(GREEN + f"Infinite values in train labels: {np.isinf(train_labels).any()}" + RESET)
+    print(GREEN + f"NaN values in train labels: {np.isnan(train_labels).any()}" + RESET)
+    
 
 # Optunaによる最適化の実行
 study = optuna.create_study(direction="maximize")
