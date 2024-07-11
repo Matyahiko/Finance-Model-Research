@@ -84,25 +84,14 @@ def load_data_from_hdf5(filename):
 
 
 def objective(trial):
-    # 全データの取得
-    train_data, train_labels = get_full_data(train_loader)
-    val_data, val_labels = get_full_data(val_loader)
     
-    # print(GREEN + f"Train data shape: {train_data.shape }" +"\n" + RESET)
-    # print(GREEN + f"Train labels shape: {train_labels.shape}" +"\n" + RESET)
-    # print(GREEN + f"Val data shape: {val_data.shape}" +"\n" + RESET)
-    # print(GREEN + f"Val labels shape: {val_labels.shape}" +"\n" + RESET)
-    # print("Train data type:", train_data.dtype)
-    # print("Train labels type:", train_labels.dtype)
-    # print("Train data range:", train_data.min(), "-", train_data.max())
-    # print("Train labels range:", train_labels.min(), "-", train_labels.max())
-    # print("Infinite values in train data:", np.isinf(train_data).any())
-    # print("NaN values in train data:", np.isnan(train_data).any())
-    # print("Infinite values in train labels:", np.isinf(train_labels).any())
-    # print("NaN values in train labels:", np.isnan(train_labels).any())
+        # パラメータの定義
+    batch_size = trial.suggest_int('batch_size', 16, 128)
+    sequence_length = trial.suggest_int('sequence_length', 12, 48)
     
 
     # Optunaによるパラメータ探索
+    
    # ハイパーパラメータの定義
     params = {
         "iterations": trial.suggest_int("iterations", 100, 1000),
@@ -114,6 +103,21 @@ def objective(trial):
         #"bagging_temperature": trial.suggest_loguniform("bagging_temperature", 0.01, 100.0),
         "loss_function": "RMSE"  # 明示的に損失関数を指定
     }
+    
+    
+    
+    train_loader, val_loader,test_loader = data_loader(
+    train_df, 
+    val_df, 
+    test_df,
+    sequence_length,
+    num_features,
+    batch_size
+    )
+
+    # 全データの取得
+    train_data, train_labels = get_full_data(train_loader)
+    val_data, val_labels = get_full_data(val_loader)
     
     # モデルの学習
     model = CatBoostRegressor(**params)
@@ -132,24 +136,15 @@ def objective(trial):
     return -rmse  # 最小化問題を最大化問題に変換
 
 
-filename = "BTC-JPY_15min_2021-2024"
+filename = "BTC-JPY_5min_2021-2024"
 train_df, val_df, test_df = load_data_from_hdf5(filename)
 
-sequence_length = 24
 num_features = len(train_df.columns)-1
-batch_size = 20
 
-train_loader, val_loader, test_loader = data_loader(
-    train_df, 
-    val_df, 
-    test_df,
-    sequence_length,
-    num_features,
-    batch_size
-)
+
 
 #debug
-if True:
+if False:
     print(GREEN + f"num_features : {num_features}" + RESET)
 
     # データローダーからイテレータを取得
@@ -201,9 +196,26 @@ print("  Params: ")
 for key, value in trial.params.items():
     print(f"    {key}: {value}")
 
+best_sequence_length = trial.params["sequence_length"]
+best_batch_size = trial.params["batch_size"]
+
+train_loader, val_loader,test_loader = data_loader(
+train_df, 
+val_df, 
+test_df,
+best_sequence_length,
+num_features,
+best_batch_size
+)
+
+# CatBoostRegressor用のパラメータを準備
+catboost_params = trial.params.copy()
+catboost_params.pop("sequence_length", None)
+catboost_params.pop("batch_size", None)
+
+
 # 最適化されたパラメータでモデルを再学習
-best_params = trial.params
-best_model = CatBoostRegressor(**best_params)
+best_model = CatBoostRegressor(**catboost_params)
 train_data, train_labels = get_full_data(train_loader)
 best_model.fit(train_data, train_labels)
 
