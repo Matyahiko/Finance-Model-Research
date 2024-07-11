@@ -6,10 +6,13 @@ import torch
 from torch.utils.data import DataLoader,Dataset
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import h5py
+import json
 from joblib import Memory
 
 import matplotlib.pyplot as plt
 import japanize_matplotlib 
+
+from sklearn.linear_model import LinearRegression
 
 GREEN = '\033[32m'
 YELLOW = '\033[33m'
@@ -18,6 +21,75 @@ RESET = '\033[0m'
 
 cache_dir = './cache/crypto'
 memory = Memory(cache_dir, verbose=0)
+
+
+def calibrate_predictions(test_labels, test_predictions, method='linear'):
+    """
+    予測値をキャリブレーションする関数
+    
+    :param test_labels: 実際の値のリスト
+    :param test_predictions: 予測値のリスト
+    :param method: キャリブレーション方法 ('linear' or 'simple_scaling')
+    :return: キャリブレーション後の予測値のリスト
+    """
+    if method == 'linear':
+        # 線形回帰を使用してキャリブレーション
+        reg = LinearRegression().fit(test_predictions.reshape(-1, 1), test_labels)
+        calibrated_predictions = reg.predict(test_predictions.reshape(-1, 1))
+    elif method == 'simple_scaling':
+        # 単純なスケーリングを使用
+        scale = np.mean(test_labels) / np.mean(test_predictions)
+        calibrated_predictions = test_predictions * scale
+    else:
+        raise ValueError("Unsupported calibration method")
+    
+    return calibrated_predictions
+
+def plot_calibration_results(test_labels, test_predictions, calibrated_predictions):
+    """
+    キャリブレーション前後の結果を可視化する関数
+    
+    :param test_labels: 実際の値のリスト
+    :param test_predictions: キャリブレーション前の予測値のリスト
+    :param calibrated_predictions: キャリブレーション後の予測値のリスト
+    """
+    plt.figure(figsize=(12, 6))
+    
+    # キャリブレーション前
+    plt.subplot(121)
+    plt.scatter(test_labels, test_predictions, alpha=0.5)
+    plt.plot([test_labels.min(), test_labels.max()], [test_labels.min(), test_labels.max()], 'r--', lw=2)
+    plt.xlabel('実際の値')
+    plt.ylabel('予測値')
+    plt.title('キャリブレーション前')
+    
+    # キャリブレーション後
+    plt.subplot(122)
+    plt.scatter(test_labels, calibrated_predictions, alpha=0.5)
+    plt.plot([test_labels.min(), test_labels.max()], [test_labels.min(), test_labels.max()], 'r--', lw=2)
+    plt.xlabel('実際の値')
+    plt.ylabel('キャリブレーション後の予測値')
+    plt.title('キャリブレーション後')
+    
+    plt.tight_layout()
+    plt.show()
+
+def evaluate_calibration(test_labels, test_predictions, calibrated_predictions):
+    """
+    キャリブレーション前後のMSEを計算して比較する関数
+    
+    :param test_labels: 実際の値のリスト
+    :param test_predictions: キャリブレーション前の予測値のリスト
+    :param calibrated_predictions: キャリブレーション後の予測値のリスト
+    :return: キャリブレーション前後のMSE
+    """
+    mse_before = mean_squared_error(test_labels, test_predictions)
+    mse_after = mean_squared_error(test_labels, calibrated_predictions)
+    
+    print(f"MSE (キャリブレーション前): {mse_before:.6f}")
+    print(f"MSE (キャリブレーション後): {mse_after:.6f}")
+    
+    return mse_before, mse_after
 
 #@memory.cache
 class ParallelFeaturesTimeSeriesDataset(Dataset):
@@ -80,85 +152,92 @@ def load_data_from_hdf5(filename):
     
    return train_df, val_df, test_df
 
+def test():
+
+    best_model = CatBoostRegressor()
+    best_model.load_model("crypto/models/best_catboost_model.cbm")
+
+    with open("crypto/models/config.json", "r") as f:
+        loaded_config = json.load(f)
+
+    filename = "BTC-JPY_15min_2021-2024"
+    train_df, val_df, test_df = load_data_from_hdf5(filename)
+
+    sequence_length = loaded_config['sequence_length']
+    num_features = len(train_df.columns)-1
+    batch_size = loaded_config['batch_size']
+
+    train_loader, val_loader, test_loader = data_loader(
+        train_df, 
+        val_df, 
+        test_df,
+        sequence_length,
+        num_features,
+        batch_size
+    )
+
+    #debug
+    if True:
+        print(f"num_features : {num_features}")
+            # データローダーからイテレータを取得
+        loader_iter = iter(train_loader)
+        print(f"DataLoader Info:")
+        print(f"Batch size: {test_loader.batch_size}")
+        print(f"Number of batches: {len(test_loader)}")
+        first_batch = next(loader_iter)
+        features, labels = first_batch
+        print(f"\nFirst batch shape: {features.shape}")
+        print(f"Data type: {features.dtype}")
+        # サンプルデータの表示
+        print("\nSample data (first 5 elements of first item in batch):")
+        print(features[0, :5])
+        print("label")
+        print(labels)
 
 
-filename = "BTC-JPY_15min_2021-2024"
-train_df, val_df, test_df = load_data_from_hdf5(filename)
 
-sequence_length = 12
-num_features = len(train_df.columns)-1
-batch_size = 20
+    # テストデータの準備
+    test_data, test_labels = get_full_data(test_loader)
 
-train_loader, val_loader, test_loader = data_loader(
-    train_df, 
-    val_df, 
-    test_df,
-    sequence_length,
-    num_features,
-    batch_size
-)
+    # テストデータでの予測
+    test_predictions = best_model.predict(test_data)
 
-#debug
-if True:
-    print(f"num_features : {num_features}")
-        # データローダーからイテレータを取得
-    loader_iter = iter(train_loader)
-    print(f"DataLoader Info:")
-    print(f"Batch size: {test_loader.batch_size}")
-    print(f"Number of batches: {len(test_loader)}")
-    first_batch = next(loader_iter)
-    features, labels = first_batch
-    print(f"\nFirst batch shape: {features.shape}")
-    print(f"Data type: {features.dtype}")
-    # サンプルデータの表示
-    print("\nSample data (first 5 elements of first item in batch):")
-    print(features[0, :5])
-    print("label")
-    print(labels)
+    # 評価指標の計算
+    rmse = np.sqrt(mean_squared_error(test_labels, test_predictions))
+    mae = mean_absolute_error(test_labels, test_predictions)
+    r2 = r2_score(test_labels, test_predictions)
 
-best_model = CatBoostRegressor()
-best_model.load_model("crypto/models/best_catboost_model.cbm")
+    # 結果の表示
+    print("テストデータでの性能評価:")
+    print(f"RMSE: {rmse:.6f}")
+    print(f"MAE: {mae:.6f}")
+    print(f"R2 Score: {r2:.6f}")
 
-# テストデータの準備
-test_data, test_labels = get_full_data(test_loader)
+    # 実際の値と予測値の散布図
 
-# テストデータでの予測
-test_predictions = best_model.predict(test_data)
+    plt.figure(figsize=(10, 6))
+    plt.scatter(test_labels, test_predictions, alpha=0.5)
+    plt.plot([test_labels.min(), test_labels.max()], [test_labels.min(), test_labels.max()], 'r--', lw=2)
+    plt.xlabel('実際の値')
+    plt.ylabel('予測値')
+    plt.title('テストデータでの実際の値 vs 予測値')
+    plt.tight_layout()
+    plt.savefig('crypto/fig/test_predictions_scatter.png')
+    plt.close()
 
-# 評価指標の計算
-rmse = np.sqrt(mean_squared_error(test_labels, test_predictions))
-mae = mean_absolute_error(test_labels, test_predictions)
-r2 = r2_score(test_labels, test_predictions)
+    # 残差プロット
+    residuals = test_labels - test_predictions
+    plt.figure(figsize=(10, 6))
+    plt.scatter(test_predictions, residuals, alpha=0.5)
+    plt.xlabel('予測値')
+    plt.ylabel('残差')
+    plt.title('残差プロット')
+    plt.axhline(y=0, color='r', linestyle='--')
+    plt.tight_layout()
+    plt.savefig('crypto/fig/residuals_plot.png')
+    plt.close()
 
-# 結果の表示
-print("テストデータでの性能評価:")
-print(f"RMSE: {rmse:.6f}")
-print(f"MAE: {mae:.6f}")
-print(f"R2 Score: {r2:.6f}")
+    print("散布図と残差プロットが crypto/fig/ ディレクトリに保存されました。")
 
-# 実際の値と予測値の散布図
-import matplotlib.pyplot as plt
-
-plt.figure(figsize=(10, 6))
-plt.scatter(test_labels, test_predictions, alpha=0.5)
-plt.plot([test_labels.min(), test_labels.max()], [test_labels.min(), test_labels.max()], 'r--', lw=2)
-plt.xlabel('実際の値')
-plt.ylabel('予測値')
-plt.title('テストデータでの実際の値 vs 予測値')
-plt.tight_layout()
-plt.savefig('crypto/fig/test_predictions_scatter.png')
-plt.close()
-
-# 残差プロット
-residuals = test_labels - test_predictions
-plt.figure(figsize=(10, 6))
-plt.scatter(test_predictions, residuals, alpha=0.5)
-plt.xlabel('予測値')
-plt.ylabel('残差')
-plt.title('残差プロット')
-plt.axhline(y=0, color='r', linestyle='--')
-plt.tight_layout()
-plt.savefig('crypto/fig/residuals_plot.png')
-plt.close()
-
-print("散布図と残差プロットが crypto/fig/ ディレクトリに保存されました。")
+if __name__ == "__main__":
+    test()

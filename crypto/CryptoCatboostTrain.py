@@ -11,6 +11,7 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import optuna
 import h5py
+import json
 from joblib import Memory
 
 GREEN = '\033[32m'
@@ -84,25 +85,14 @@ def load_data_from_hdf5(filename):
 
 
 def objective(trial):
-    # 全データの取得
-    train_data, train_labels = get_full_data(train_loader)
-    val_data, val_labels = get_full_data(val_loader)
     
-    # print(GREEN + f"Train data shape: {train_data.shape }" +"\n" + RESET)
-    # print(GREEN + f"Train labels shape: {train_labels.shape}" +"\n" + RESET)
-    # print(GREEN + f"Val data shape: {val_data.shape}" +"\n" + RESET)
-    # print(GREEN + f"Val labels shape: {val_labels.shape}" +"\n" + RESET)
-    # print("Train data type:", train_data.dtype)
-    # print("Train labels type:", train_labels.dtype)
-    # print("Train data range:", train_data.min(), "-", train_data.max())
-    # print("Train labels range:", train_labels.min(), "-", train_labels.max())
-    # print("Infinite values in train data:", np.isinf(train_data).any())
-    # print("NaN values in train data:", np.isnan(train_data).any())
-    # print("Infinite values in train labels:", np.isinf(train_labels).any())
-    # print("NaN values in train labels:", np.isnan(train_labels).any())
+        # パラメータの定義
+    batch_size = trial.suggest_int('batch_size', 16, 128)
+    sequence_length = trial.suggest_int('sequence_length', 12, 48)
     
 
     # Optunaによるパラメータ探索
+    
    # ハイパーパラメータの定義
     params = {
         "iterations": trial.suggest_int("iterations", 100, 1000),
@@ -115,13 +105,28 @@ def objective(trial):
         "loss_function": "RMSE"  # 明示的に損失関数を指定
     }
     
+    
+    
+    train_loader, val_loader,test_loader = data_loader(
+    train_df, 
+    val_df, 
+    test_df,
+    sequence_length,
+    num_features,
+    batch_size
+    )
+
+    # 全データの取得
+    train_data, train_labels = get_full_data(train_loader)
+    val_data, val_labels = get_full_data(val_loader)
+    
     # モデルの学習
     model = CatBoostRegressor(**params)
     model.fit(train_data, 
             train_labels, 
             eval_set=(val_data, val_labels), 
-            early_stopping_rounds=20, 
-            verbose=False)
+            early_stopping_rounds=50, 
+            verbose=10)
 
     # 検証データでの予測
     preds = model.predict(val_data)
@@ -129,45 +134,59 @@ def objective(trial):
     # 評価指標の計算（ここではRMSEを使用）
     rmse = np.sqrt(mean_squared_error(val_labels, preds))
 
-    return -rmse  # 最小化問題を最大化問題に変換
+    return rmse  # 最小化問題を最大化問題に変換
 
 
-filename = "BTC-JPY_15min_2021-2024"
+filename = "BTC-JPY_5min_2021-2024"
 train_df, val_df, test_df = load_data_from_hdf5(filename)
 
-sequence_length = 12
 num_features = len(train_df.columns)-1
-batch_size = 20
 
-train_loader, val_loader, test_loader = data_loader(
-    train_df, 
-    val_df, 
-    test_df,
-    sequence_length,
-    num_features,
-    batch_size
-)
+
 
 #debug
-if True:
-    print(f"num_features : {num_features}")
-        # データローダーからイテレータを取得
+if False:
+    print(GREEN + f"num_features : {num_features}" + RESET)
+
+    # データローダーからイテレータを取得
     loader_iter = iter(train_loader)
-    print(f"DataLoader Info:")
-    print(f"Batch size: {test_loader.batch_size}")
-    print(f"Number of batches: {len(test_loader)}")
+
+    print(GREEN + f"DataLoader Info:" + RESET)
+    print(GREEN + f"Batch size: {test_loader.batch_size}" + RESET)
+    print(GREEN + f"Number of batches: {len(test_loader)}" + RESET)
+
     first_batch = next(loader_iter)
     features, labels = first_batch
-    print(f"\nFirst batch shape: {features.shape}")
-    print(f"Data type: {features.dtype}")
+
+    print(GREEN + f"\nFirst batch shape: {features.shape}" + RESET)
+    print(GREEN + f"Data type: {features.dtype}" + RESET)
+
     # サンプルデータの表示
-    print("\nSample data (first 5 elements of first item in batch):")
-    print(features[0, :5])
-    print("label")
-    print(labels)
+    print(GREEN + "\nSample data (first 5 elements of first item in batch):" + RESET)
+    print(GREEN + f"{features[0, :5]}" + RESET)
+
+    print(GREEN + "label" + RESET)
+    print(GREEN + f"{labels}" + RESET)
+    
+    train_data, train_labels = get_full_data(train_loader)
+    val_data, val_labels = get_full_data(val_loader)
+    
+    print(GREEN + f"Train data shape: {train_data.shape}" + RESET)
+    print(GREEN + f"Train labels shape: {train_labels.shape}" + RESET)
+    print(GREEN + f"Val data shape: {val_data.shape}" + RESET)
+    print(GREEN + f"Val labels shape: {val_labels.shape}" + RESET)
+    print(GREEN + f"Train data type: {train_data.dtype}" + RESET)
+    print(GREEN + f"Train labels type: {train_labels.dtype}" + RESET)
+    print(GREEN + f"Train data range: {train_data.min()} - {train_data.max()}" + RESET)
+    print(GREEN + f"Train labels range: {train_labels.min()} - {train_labels.max()}" + RESET)
+    print(GREEN + f"Infinite values in train data: {np.isinf(train_data).any()}" + RESET)
+    print(GREEN + f"NaN values in train data: {np.isnan(train_data).any()}" + RESET)
+    print(GREEN + f"Infinite values in train labels: {np.isinf(train_labels).any()}" + RESET)
+    print(GREEN + f"NaN values in train labels: {np.isnan(train_labels).any()}" + RESET)
+    
 
 # Optunaによる最適化の実行
-study = optuna.create_study(direction="maximize")
+study = optuna.create_study(direction="minimize")
 study.optimize(objective, n_trials=100)
 
 # 最良のトライアルの表示
@@ -178,14 +197,45 @@ print("  Params: ")
 for key, value in trial.params.items():
     print(f"    {key}: {value}")
 
+best_sequence_length = trial.params["sequence_length"]
+best_batch_size = trial.params["batch_size"]
+
+train_loader, val_loader,test_loader = data_loader(
+train_df, 
+val_df, 
+test_df,
+best_sequence_length,
+num_features,
+best_batch_size
+)
+
+# CatBoostRegressor用のパラメータを準備
+catboost_params = trial.params.copy()
+catboost_params.pop("sequence_length", None)
+catboost_params.pop("batch_size", None)
+
+
 # 最適化されたパラメータでモデルを再学習
-best_params = trial.params
-best_model = CatBoostRegressor(**best_params)
+best_model = CatBoostRegressor(**catboost_params)
 train_data, train_labels = get_full_data(train_loader)
-best_model.fit(train_data, train_labels)
+val_data,val_labels = get_full_data(val_loader)
+best_model.fit(train_data, 
+        train_labels, 
+        eval_set=(val_data, val_labels), 
+        early_stopping_rounds=50, 
+        verbose=10)
 
 # モデルの保存
 best_model.save_model("crypto/models/best_catboost_model.cbm")
+
+# 設定をJSONファイルとして保存
+config = {
+    "sequence_length": best_sequence_length,
+    "batch_size": best_batch_size
+}
+
+with open("crypto/models/config.json", "w") as f:
+    json.dump(config, f)
 
 # 特徴量の寄与率を計算
 feature_importance = best_model.get_feature_importance()

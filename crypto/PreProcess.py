@@ -99,7 +99,7 @@ def split_time_series_data(df, test_size=0.2, val_size=0.2):
     
     return train_df, val_df, test_df
 
-@memory.cache
+#@memory.cache
 def load_data(file_path, split_point=None):
     with open(file_path, 'r') as f:
         data = json.load(f)
@@ -119,7 +119,7 @@ def load_data(file_path, split_point=None):
     
     return df,filename
 
-@memory.cache
+#@memory.cache
 def add_technical_indicators(df):
     open_price, high_price, low_price, close_price = df["open_price"], df["high_price"], df["low_price"], df["close_price"]
     
@@ -165,7 +165,7 @@ def remove_multicollinearity(train_data, test_data, threshold=0.7):
 
     return train_data_cleaned, test_data_cleaned
 
-def calculate_target_variable(df, holding_period=12, profit_threshold=0.02):
+def calculate_target_variable(df, holding_period=6, profit_threshold=0.02):
     """
     エントリールールを探索するため、各時間ステップで指定期間ホールドした際の利益率を計算し、
     利益率が閾値を超える場合を１、超えない場合には０にする関数。
@@ -208,7 +208,7 @@ def calculate_target_variable(df, holding_period=12, profit_threshold=0.02):
 
 def main():
     # データの読み込み
-    df,filename = load_data('RawData/btc/BTC-JPY_15min_2021-2024.json', split_point=1000)
+    df,filename = load_data('RawData/btc/BTC-JPY_5min_2021-2024.json', split_point=1000)
     
     # 特徴量の追加
     df = add_technical_indicators(df)
