@@ -99,7 +99,7 @@ def split_time_series_data(df, test_size=0.2, val_size=0.2):
     
     return train_df, val_df, test_df
 
-@memory.cache
+#@memory.cache
 def load_data(file_path, split_point=None):
     with open(file_path, 'r') as f:
         data = json.load(f)
@@ -119,7 +119,7 @@ def load_data(file_path, split_point=None):
     
     return df,filename
 
-@memory.cache
+#@memory.cache
 def add_technical_indicators(df):
     open_price, high_price, low_price, close_price = df["open_price"], df["high_price"], df["low_price"], df["close_price"]
     
