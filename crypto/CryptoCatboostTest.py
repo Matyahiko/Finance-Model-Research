@@ -6,6 +6,7 @@ import torch
 from torch.utils.data import DataLoader,Dataset
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import h5py
+import json
 from joblib import Memory
 
 import matplotlib.pyplot as plt
@@ -81,13 +82,18 @@ def load_data_from_hdf5(filename):
    return train_df, val_df, test_df
 
 
+best_model = CatBoostRegressor()
+best_model.load_model("crypto/models/best_catboost_model.cbm")
+
+with open("crypto/models/config.json", "r") as f:
+    loaded_config = json.load(f)
 
 filename = "BTC-JPY_15min_2021-2024"
 train_df, val_df, test_df = load_data_from_hdf5(filename)
 
-sequence_length = 24
+sequence_length = loaded_config['sequence_length']
 num_features = len(train_df.columns)-1
-batch_size = 20
+batch_size = loaded_config['batch_size']
 
 train_loader, val_loader, test_loader = data_loader(
     train_df, 
@@ -116,8 +122,7 @@ if True:
     print("label")
     print(labels)
 
-best_model = CatBoostRegressor()
-best_model.load_model("crypto/models/best_catboost_model.cbm")
+
 
 # テストデータの準備
 test_data, test_labels = get_full_data(test_loader)

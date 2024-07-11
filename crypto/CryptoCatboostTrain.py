@@ -11,6 +11,7 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import optuna
 import h5py
+import json
 from joblib import Memory
 
 GREEN = '\033[32m'
@@ -124,8 +125,8 @@ def objective(trial):
     model.fit(train_data, 
             train_labels, 
             eval_set=(val_data, val_labels), 
-            early_stopping_rounds=20, 
-            verbose=False)
+            early_stopping_rounds=50, 
+            verbose=10)
 
     # 検証データでの予測
     preds = model.predict(val_data)
@@ -133,7 +134,7 @@ def objective(trial):
     # 評価指標の計算（ここではRMSEを使用）
     rmse = np.sqrt(mean_squared_error(val_labels, preds))
 
-    return -rmse  # 最小化問題を最大化問題に変換
+    return rmse  # 最小化問題を最大化問題に変換
 
 
 filename = "BTC-JPY_5min_2021-2024"
@@ -185,7 +186,7 @@ if False:
     
 
 # Optunaによる最適化の実行
-study = optuna.create_study(direction="maximize")
+study = optuna.create_study(direction="minimize")
 study.optimize(objective, n_trials=100)
 
 # 最良のトライアルの表示
@@ -217,10 +218,24 @@ catboost_params.pop("batch_size", None)
 # 最適化されたパラメータでモデルを再学習
 best_model = CatBoostRegressor(**catboost_params)
 train_data, train_labels = get_full_data(train_loader)
-best_model.fit(train_data, train_labels)
+val_data,val_labels = get_full_data(val_loader)
+best_model.fit(train_data, 
+        train_labels, 
+        eval_set=(val_data, val_labels), 
+        early_stopping_rounds=50, 
+        verbose=10)
 
 # モデルの保存
 best_model.save_model("crypto/models/best_catboost_model.cbm")
+
+# 設定をJSONファイルとして保存
+config = {
+    "sequence_length": best_sequence_length,
+    "batch_size": best_batch_size
+}
+
+with open("crypto/models/config.json", "w") as f:
+    json.dump(config, f)
 
 # 特徴量の寄与率を計算
 feature_importance = best_model.get_feature_importance()
