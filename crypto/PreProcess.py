@@ -9,15 +9,44 @@ import h5py
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-
+from sklearn.preprocessing import StandardScaler
+from CryptoCatboostTrain import cat_train
 
 from joblib import Memory
 
 cache_dir = './cache/crypto'
 memory = Memory(cache_dir, verbose=0)
 
+def standardize_dataframe(df, exclude_columns=['close_time']):
+    """
+    DataFrame内の数値列を標準化する関数。
+    指定された列（デフォルトは'close_time'）は標準化から除外される。
 
-def analyze_target_distribution(df: pd.DataFrame, target_column: str = 'target',save_dir: str = 'crypto/fig'):
+    Parameters:
+    df (pd.DataFrame): 標準化するDataFrame
+    exclude_columns (list): 標準化から除外する列名のリスト
+
+    Returns:
+    pd.DataFrame: 標準化されたDataFrame
+    dict: 各列のScalerオブジェクト
+    """
+    # 入力DataFrameのコピーを作成
+    df_scaled = df.copy()
+    
+    # 数値列を特定（exclude_columnsに含まれない列のみ）
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    columns_to_scale = [col for col in numeric_columns if col not in exclude_columns]
+    
+    # 各列に対してStandardScalerを適用
+    scalers = {}
+    for col in columns_to_scale:
+        scaler = StandardScaler()
+        df_scaled[col] = scaler.fit_transform(df[[col]])
+        scalers[col] = scaler
+    
+    return df_scaled, scalers
+
+def analyze_target_distribution(df: pd.DataFrame, name:str, target_column: str = 'target', save_dir: str = 'crypto/fig' ):
     """
     Analyze and visualize the distribution of target labels in a DataFrame.
     
@@ -50,7 +79,7 @@ def analyze_target_distribution(df: pd.DataFrame, target_column: str = 'target',
     plt.xlabel('Target Value')
     
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, 'target_distribution.png'))
+    plt.savefig(os.path.join(save_dir, f'{name}_target_distribution.png'))
     plt.close()
     
     # クラスバランス（カテゴリカルデータの場合）
@@ -61,9 +90,8 @@ def analyze_target_distribution(df: pd.DataFrame, target_column: str = 'target',
         plt.xlabel('Target Class')
         plt.ylabel('Count')
         plt.xticks(rotation=45)
-        plt.savefig(os.path.join(save_dir, 'class_balance.png'))
+        plt.savefig(os.path.join(save_dir, f'{name}_class_balance.png'))
         plt.close()
-
 
 def split_time_series_data(df, test_size=0.2, val_size=0.2):
     """
@@ -165,7 +193,7 @@ def remove_multicollinearity(train_data, test_data, threshold=0.7):
 
     return train_data_cleaned, test_data_cleaned
 
-def calculate_target_variable(df, holding_period=6, profit_threshold=0.02):
+def calculate_target_variable(df, holding_period=1, profit_threshold=0.02):
     """
     エントリールールを探索するため、各時間ステップで指定期間ホールドした際の利益率を計算し、
     利益率が閾値を超える場合を１、超えない場合には０にする関数。
@@ -208,7 +236,7 @@ def calculate_target_variable(df, holding_period=6, profit_threshold=0.02):
 
 def main():
     # データの読み込み
-    df,filename = load_data('RawData/btc/BTC-JPY_5min_2021-2024.json', split_point=1000)
+    df,filename = load_data('RawData/btc/BTC-JPY_15min_2021-2024.json', split_point=100000)
     
     # 特徴量の追加
     df = add_technical_indicators(df)
@@ -217,43 +245,41 @@ def main():
     df = calculate_target_variable(df)
     
     # 不要な列を削除
-    #df.drop("return", axis=1, inplace=True)
+    #df.drop("close_time", axis=1, inplace=True)
     df.dropna(inplace=True)
+    
+    df,scalers = standardize_dataframe(df)
+    
     
     # 学習データとテストデータに分割
     train_df, val_df, test_df = split_time_series_data(df)
     
-    analyze_target_distribution(train_df, 'target')
+    analyze_target_distribution(train_df,"train")
+    analyze_target_distribution(val_df,"val")
+    analyze_target_distribution(test_df,"test")
     
     # 多重共線性が認められる特徴量を削除
     #train_df_cleaned, test_df_cleaned = remove_multicollinearity(train_df, test_df)
     
     print(len(df.columns))
+    print(df.columns)
     
     print(f"多重共線性が認められる特徴量を削除後の学習データ数: {train_df.shape}")
     print(f"多重共線性が認められる特徴量を削除後のテストデータ数: {test_df.shape}")
     print(f"削除された特徴量: {set(train_df.columns) - set(train_df.columns)}")
     
-    # HDF5ファイルにデータを保存
-    with h5py.File(f"crypto/processed/{filename}.h5", 'w') as hf:
-            # トレーニングデータの保存
-            train_group = hf.create_group('train')
-            for column in train_df.columns:
-                train_group.create_dataset(column, data=train_df[column].values)
-            
-            # バリデーションデータの保存
-            val_group = hf.create_group('val')
-            for column in val_df.columns:
-                val_group.create_dataset(column, data=val_df[column].values)
-            
-            # テストデータの保存
-            test_group = hf.create_group('test')
-            for column in test_df.columns:
-                test_group.create_dataset(column, data=test_df[column].values)
 
-            # メタデータの保存（例：カラム名）
-            # 文字列のリストとして保存
-            hf.attrs['columns'] = train_df.columns.tolist()
         
+    for df in [train_df, val_df, test_df]:
+        numeric_columns = df.select_dtypes(include=['int64', 'float64']).columns
+        df[numeric_columns] = df[numeric_columns].astype('float32')
+
+    # インデックスを保持しつつCSVファイルに保存
+    train_df.to_csv(f"crypto/processed/{filename}_train.csv", index=True, float_format='%.8f')
+    val_df.to_csv(f"crypto/processed/{filename}_val.csv", index=True, float_format='%.8f')
+    test_df.to_csv(f"crypto/processed/{filename}_test.csv", index=True, float_format='%.8f')
+    
+    cat_train(filename)
+
 if __name__=="__main__":
     main()
