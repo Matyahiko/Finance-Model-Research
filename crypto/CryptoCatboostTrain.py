@@ -7,12 +7,13 @@ from catboost import CatBoostRegressor
 import torch
 from torch.utils.data import DataLoader,Dataset
 import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, precision_score, recall_score, f1_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import optuna
 import h5py
 import json
 from joblib import Memory
+
+from CryptoCatboostTest import test
 
 GREEN = '\033[32m'
 YELLOW = '\033[33m'
@@ -26,7 +27,7 @@ memory = Memory(cache_dir, verbose=0)
 class ParallelFeaturesTimeSeriesDataset(Dataset):
     def __init__(self, data, sequence_length, num_features):
         # Separate target from features
-        self.features = torch.FloatTensor(data.drop('target', axis=1).values)
+        self.features = torch.FloatTensor((data.reset_index()).drop(['close_time','target'], axis=1).values)
         self.targets = torch.FloatTensor(data['target'].values)
         self.sequence_length = sequence_length
         self.num_features = num_features - 1  # Subtract 1 for the target column
@@ -47,6 +48,8 @@ class ParallelFeaturesTimeSeriesDataset(Dataset):
 
 #@memory.cache
 def data_loader(train_df, val_df, test_df, sequence_length, num_features, batch_size):
+    print(train_df)
+
     train_dataset = ParallelFeaturesTimeSeriesDataset(train_df, sequence_length, num_features)
     val_dataset = ParallelFeaturesTimeSeriesDataset(val_df, sequence_length, num_features)
     test_dataset = ParallelFeaturesTimeSeriesDataset(test_df, sequence_length, num_features)
@@ -67,28 +70,20 @@ def get_full_data(data_loader):
     return torch.cat(full_data, dim=0).numpy(), torch.cat(full_labels, dim=0).numpy()
 
 #@memory.cache
-def load_data_from_hdf5(filename):
-    
-   with h5py.File(f"crypto/processed/{filename}.h5", 'r') as hf:
-        # 文字列のリストとして読み込む
-        columns = list(hf.attrs['columns'])
-        
-        train_data = {col: hf['train'][col][:] for col in columns}
-        val_data = {col: hf['val'][col][:] for col in columns}
-        test_data = {col: hf['test'][col][:] for col in columns}
-        
-        train_df = pd.DataFrame(train_data)
-        val_df = pd.DataFrame(val_data)
-        test_df = pd.DataFrame(test_data)
-    
-   return train_df, val_df, test_df
+def read_csv_with_dtypes(filepath):
+    # まず型指定なしで読み込む
+    df = pd.read_csv(filepath, index_col=0)
+    # 数値列のみをfloat32に変換
+    numeric_columns = df.select_dtypes(include=['int64', 'float64']).columns
+    df[numeric_columns] = df[numeric_columns].astype('float32')
+    return df
 
 
 def objective(trial):
     
         # パラメータの定義
     batch_size = trial.suggest_int('batch_size', 16, 128)
-    sequence_length = trial.suggest_int('sequence_length', 12, 48)
+    sequence_length = trial.suggest_int('sequence_length', 3, 48)
     
 
     # Optunaによるパラメータ探索
@@ -102,7 +97,8 @@ def objective(trial):
         "bootstrap_type": trial.suggest_categorical("bootstrap_type", ["Bayesian", "Bernoulli", "MVS"]),
         "random_strength": trial.suggest_uniform("random_strength", 1e-9, 10),
         #"bagging_temperature": trial.suggest_loguniform("bagging_temperature", 0.01, 100.0),
-        "loss_function": "RMSE"  # 明示的に損失関数を指定
+        "loss_function": "RMSE" , # 明示的に損失関数を指定
+        "task_type" : "GPU"
     }
     
     
@@ -119,13 +115,16 @@ def objective(trial):
     # 全データの取得
     train_data, train_labels = get_full_data(train_loader)
     val_data, val_labels = get_full_data(val_loader)
+    # print(type(train_data))
+    # print(train_data)
+    # print(train_data.shape)
     
     # モデルの学習
     model = CatBoostRegressor(**params)
     model.fit(train_data, 
             train_labels, 
             eval_set=(val_data, val_labels), 
-            early_stopping_rounds=50, 
+            early_stopping_rounds=15, 
             verbose=10)
 
     # 検証データでの予測
@@ -138,10 +137,12 @@ def objective(trial):
 
 
 filename = "BTC-JPY_5min_2021-2024"
-train_df, val_df, test_df = load_data_from_hdf5(filename)
+# CSVから読み込む
+train_df = read_csv_with_dtypes(f"crypto/processed/{filename}_train.csv")
+val_df = read_csv_with_dtypes(f"crypto/processed/{filename}_val.csv")
+test_df = read_csv_with_dtypes(f"crypto/processed/{filename}_test.csv")
 
 num_features = len(train_df.columns)-1
-
 
 
 #debug
@@ -219,11 +220,23 @@ catboost_params.pop("batch_size", None)
 best_model = CatBoostRegressor(**catboost_params)
 train_data, train_labels = get_full_data(train_loader)
 val_data,val_labels = get_full_data(val_loader)
-best_model.fit(train_data, 
+history = best_model.fit(train_data, 
         train_labels, 
         eval_set=(val_data, val_labels), 
-        early_stopping_rounds=50, 
+        early_stopping_rounds=15, 
         verbose=10)
+
+
+# 学習曲線の描画
+plt.figure(figsize=(10, 6))
+plt.plot(history.evals_result_['learn']['RMSE'], label='Train')
+plt.plot(history.evals_result_['validation']['RMSE'], label='Validation')
+plt.xlabel('Iterations')
+plt.ylabel('RMSE')
+plt.title('CatBoost Learning Curve')
+plt.legend()
+plt.grid(True)
+plt.savefig("crypto/fig/CatBoost_Learning_Curve.png")
 
 # モデルの保存
 best_model.save_model("crypto/models/best_catboost_model.cbm")
@@ -261,3 +274,4 @@ print("\nFeature Importance:")
 for feature, importance in zip(sorted_features[-20:], sorted_importance[-20:]):
     print(f"{feature}: {importance:.4f}")
     
+test()
