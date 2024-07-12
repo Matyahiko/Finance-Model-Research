@@ -9,13 +9,12 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 import h5py
 import json
 from joblib import Memory
+import seaborn as sns
 
 import matplotlib.pyplot as plt
 import japanize_matplotlib 
 
 from sklearn.linear_model import LinearRegression
-
-from PreProcess import analyze_target_distribution
 
 GREEN = '\033[32m'
 YELLOW = '\033[33m'
@@ -24,6 +23,53 @@ RESET = '\033[0m'
 
 cache_dir = './cache/crypto'
 memory = Memory(cache_dir, verbose=0)
+
+def analyze_target_distribution(df: pd.DataFrame, name:str, target_column: str = 'target', save_dir: str = 'crypto/fig' ):
+    """
+    Analyze and visualize the distribution of target labels in a DataFrame.
+    
+    :param df: pandas DataFrame containing the dataset
+    :param target_column: name of the target column (default is 'target')
+    """
+    # 基本的な統計情報
+    print("Target Distribution Summary:")
+    print(df[target_column].describe())
+    
+    # 値の頻度
+    value_counts = df[target_column].value_counts()
+    print("\nValue Counts:")
+    print(value_counts)
+    
+    # 分布の可視化
+    plt.figure(figsize=(10, 6))
+    
+    # ヒストグラム
+    plt.subplot(2, 1, 1)
+    sns.histplot(df[target_column], kde=True)
+    plt.title('Histogram of Target Values')
+    plt.xlabel('Target Value')
+    plt.ylabel('Frequency')
+    
+    # 箱ひげ図
+    plt.subplot(2, 1, 2)
+    sns.boxplot(x=df[target_column])
+    plt.title('Boxplot of Target Values')
+    plt.xlabel('Target Value')
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f'{name}_target_distribution.png'))
+    plt.close()
+    
+    # クラスバランス（カテゴリカルデータの場合）
+    if df[target_column].dtype == 'object' or df[target_column].nunique() < 10:
+        plt.figure(figsize=(10, 6))
+        sns.countplot(x=df[target_column])
+        plt.title('Class Balance')
+        plt.xlabel('Target Class')
+        plt.ylabel('Count')
+        plt.xticks(rotation=45)
+        plt.savefig(os.path.join(save_dir, f'{name}_class_balance.png'))
+        plt.close()
 
 def calculate_metrics(test_labels, test_predictions):
     """評価指標を計算する関数"""
@@ -158,7 +204,7 @@ def read_csv_with_dtypes(filepath):
     df[numeric_columns] = df[numeric_columns].astype('float32')
     return df
 
-def test():
+def test(filename):
 
     best_model = CatBoostRegressor()
     best_model.load_model("crypto/models/best_catboost_model.cbm")
@@ -166,7 +212,7 @@ def test():
     with open("crypto/models/config.json", "r") as f:
         loaded_config = json.load(f)
 
-    filename = "BTC-JPY_5min_2021-2024"
+    #filename = "BTC-JPY_5min_2021-2024"
     
     # CSVから読み込む
     train_df = read_csv_with_dtypes(f"crypto/processed/{filename}_train.csv")
@@ -226,4 +272,4 @@ def test():
     print(test_predictions)
 
 if __name__ == "__main__":
-    test()
+    test("BTC-JPY_5min_2021-2024")

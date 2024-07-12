@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 from sklearn.preprocessing import StandardScaler
+from CryptoCatboostTrain import cat_train
 
 from joblib import Memory
 
@@ -235,7 +236,7 @@ def calculate_target_variable(df, holding_period=1, profit_threshold=0.02):
 
 def main():
     # データの読み込み
-    df,filename = load_data('RawData/btc/BTC-JPY_5min_2021-2024.json', split_point=100000)
+    df,filename = load_data('RawData/btc/BTC-JPY_15min_2021-2024.json', split_point=100000)
     
     # 特徴量の追加
     df = add_technical_indicators(df)
@@ -277,6 +278,8 @@ def main():
     train_df.to_csv(f"crypto/processed/{filename}_train.csv", index=True, float_format='%.8f')
     val_df.to_csv(f"crypto/processed/{filename}_val.csv", index=True, float_format='%.8f')
     test_df.to_csv(f"crypto/processed/{filename}_test.csv", index=True, float_format='%.8f')
+    
+    cat_train(filename)
 
 if __name__=="__main__":
     main()

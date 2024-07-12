@@ -23,6 +23,14 @@ RESET = '\033[0m'
 cache_dir = './cache/crypto'
 memory = Memory(cache_dir, verbose=0)
 
+# グローバル変数の宣言
+global train_df, val_df, test_df
+train_df = None
+val_df = None
+test_df = None
+num_features = None
+
+
 #@memory.cache
 class ParallelFeaturesTimeSeriesDataset(Dataset):
     def __init__(self, data, sequence_length, num_features):
@@ -102,6 +110,7 @@ def objective(trial):
     }
     
     
+    global train_df, val_df, test_df, num_features
     
     train_loader, val_loader,test_loader = data_loader(
     train_df, 
@@ -136,142 +145,148 @@ def objective(trial):
     return rmse  # 最小化問題を最大化問題に変換
 
 
-filename = "BTC-JPY_5min_2021-2024"
-# CSVから読み込む
-train_df = read_csv_with_dtypes(f"crypto/processed/{filename}_train.csv")
-val_df = read_csv_with_dtypes(f"crypto/processed/{filename}_val.csv")
-test_df = read_csv_with_dtypes(f"crypto/processed/{filename}_test.csv")
+def cat_train (filename):
 
-num_features = len(train_df.columns)-1
+    #filename = "BTC-JPY_15min_2021-2024"
+    # CSVから読み込む
+    global train_df, val_df, test_df, num_features
+    train_df = read_csv_with_dtypes(f"crypto/processed/{filename}_train.csv")
+    val_df = read_csv_with_dtypes(f"crypto/processed/{filename}_val.csv")
+    test_df = read_csv_with_dtypes(f"crypto/processed/{filename}_test.csv")
+
+    num_features = len(train_df.columns)-1
 
 
-#debug
-if False:
-    print(GREEN + f"num_features : {num_features}" + RESET)
+    #debug
+    if False:
+        print(GREEN + f"num_features : {num_features}" + RESET)
 
-    # データローダーからイテレータを取得
-    loader_iter = iter(train_loader)
+        # データローダーからイテレータを取得
+        loader_iter = iter(train_loader)
 
-    print(GREEN + f"DataLoader Info:" + RESET)
-    print(GREEN + f"Batch size: {test_loader.batch_size}" + RESET)
-    print(GREEN + f"Number of batches: {len(test_loader)}" + RESET)
+        print(GREEN + f"DataLoader Info:" + RESET)
+        print(GREEN + f"Batch size: {test_loader.batch_size}" + RESET)
+        print(GREEN + f"Number of batches: {len(test_loader)}" + RESET)
 
-    first_batch = next(loader_iter)
-    features, labels = first_batch
+        first_batch = next(loader_iter)
+        features, labels = first_batch
 
-    print(GREEN + f"\nFirst batch shape: {features.shape}" + RESET)
-    print(GREEN + f"Data type: {features.dtype}" + RESET)
+        print(GREEN + f"\nFirst batch shape: {features.shape}" + RESET)
+        print(GREEN + f"Data type: {features.dtype}" + RESET)
 
-    # サンプルデータの表示
-    print(GREEN + "\nSample data (first 5 elements of first item in batch):" + RESET)
-    print(GREEN + f"{features[0, :5]}" + RESET)
+        # サンプルデータの表示
+        print(GREEN + "\nSample data (first 5 elements of first item in batch):" + RESET)
+        print(GREEN + f"{features[0, :5]}" + RESET)
 
-    print(GREEN + "label" + RESET)
-    print(GREEN + f"{labels}" + RESET)
-    
+        print(GREEN + "label" + RESET)
+        print(GREEN + f"{labels}" + RESET)
+        
+        train_data, train_labels = get_full_data(train_loader)
+        val_data, val_labels = get_full_data(val_loader)
+        
+        print(GREEN + f"Train data shape: {train_data.shape}" + RESET)
+        print(GREEN + f"Train labels shape: {train_labels.shape}" + RESET)
+        print(GREEN + f"Val data shape: {val_data.shape}" + RESET)
+        print(GREEN + f"Val labels shape: {val_labels.shape}" + RESET)
+        print(GREEN + f"Train data type: {train_data.dtype}" + RESET)
+        print(GREEN + f"Train labels type: {train_labels.dtype}" + RESET)
+        print(GREEN + f"Train data range: {train_data.min()} - {train_data.max()}" + RESET)
+        print(GREEN + f"Train labels range: {train_labels.min()} - {train_labels.max()}" + RESET)
+        print(GREEN + f"Infinite values in train data: {np.isinf(train_data).any()}" + RESET)
+        print(GREEN + f"NaN values in train data: {np.isnan(train_data).any()}" + RESET)
+        print(GREEN + f"Infinite values in train labels: {np.isinf(train_labels).any()}" + RESET)
+        print(GREEN + f"NaN values in train labels: {np.isnan(train_labels).any()}" + RESET)
+        
+
+    # Optunaによる最適化の実行
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective,n_trials=100)
+
+    # 最良のトライアルの表示
+    print("Best trial:")
+    trial = study.best_trial
+    print("  Value: ", -trial.value)  # RMSEの値（元の最小化問題の値）
+    print("  Params: ")
+    for key, value in trial.params.items():
+        print(f"    {key}: {value}")
+
+    best_sequence_length = trial.params["sequence_length"]
+    best_batch_size = trial.params["batch_size"]
+
+    train_loader, val_loader,test_loader = data_loader(
+    train_df, 
+    val_df, 
+    test_df,
+    best_sequence_length,
+    num_features,
+    best_batch_size
+    )
+
+    # CatBoostRegressor用のパラメータを準備
+    catboost_params = trial.params.copy()
+    catboost_params.pop("sequence_length", None)
+    catboost_params.pop("batch_size", None)
+
+
+    # 最適化されたパラメータでモデルを再学習
+    best_model = CatBoostRegressor(**catboost_params)
     train_data, train_labels = get_full_data(train_loader)
-    val_data, val_labels = get_full_data(val_loader)
-    
-    print(GREEN + f"Train data shape: {train_data.shape}" + RESET)
-    print(GREEN + f"Train labels shape: {train_labels.shape}" + RESET)
-    print(GREEN + f"Val data shape: {val_data.shape}" + RESET)
-    print(GREEN + f"Val labels shape: {val_labels.shape}" + RESET)
-    print(GREEN + f"Train data type: {train_data.dtype}" + RESET)
-    print(GREEN + f"Train labels type: {train_labels.dtype}" + RESET)
-    print(GREEN + f"Train data range: {train_data.min()} - {train_data.max()}" + RESET)
-    print(GREEN + f"Train labels range: {train_labels.min()} - {train_labels.max()}" + RESET)
-    print(GREEN + f"Infinite values in train data: {np.isinf(train_data).any()}" + RESET)
-    print(GREEN + f"NaN values in train data: {np.isnan(train_data).any()}" + RESET)
-    print(GREEN + f"Infinite values in train labels: {np.isinf(train_labels).any()}" + RESET)
-    print(GREEN + f"NaN values in train labels: {np.isnan(train_labels).any()}" + RESET)
-    
-
-# Optunaによる最適化の実行
-study = optuna.create_study(direction="minimize")
-study.optimize(objective, n_trials=100)
-
-# 最良のトライアルの表示
-print("Best trial:")
-trial = study.best_trial
-print("  Value: ", -trial.value)  # RMSEの値（元の最小化問題の値）
-print("  Params: ")
-for key, value in trial.params.items():
-    print(f"    {key}: {value}")
-
-best_sequence_length = trial.params["sequence_length"]
-best_batch_size = trial.params["batch_size"]
-
-train_loader, val_loader,test_loader = data_loader(
-train_df, 
-val_df, 
-test_df,
-best_sequence_length,
-num_features,
-best_batch_size
-)
-
-# CatBoostRegressor用のパラメータを準備
-catboost_params = trial.params.copy()
-catboost_params.pop("sequence_length", None)
-catboost_params.pop("batch_size", None)
+    val_data,val_labels = get_full_data(val_loader)
+    history = best_model.fit(train_data, 
+            train_labels, 
+            eval_set=(val_data, val_labels), 
+            early_stopping_rounds=15, 
+            verbose=10)
 
 
-# 最適化されたパラメータでモデルを再学習
-best_model = CatBoostRegressor(**catboost_params)
-train_data, train_labels = get_full_data(train_loader)
-val_data,val_labels = get_full_data(val_loader)
-history = best_model.fit(train_data, 
-        train_labels, 
-        eval_set=(val_data, val_labels), 
-        early_stopping_rounds=15, 
-        verbose=10)
+    # 学習曲線の描画
+    plt.figure(figsize=(10, 6))
+    plt.plot(history.evals_result_['learn']['RMSE'], label='Train')
+    plt.plot(history.evals_result_['validation']['RMSE'], label='Validation')
+    plt.xlabel('Iterations')
+    plt.ylabel('RMSE')
+    plt.title('CatBoost Learning Curve')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("crypto/fig/CatBoost_Learning_Curve.png")
 
+    # モデルの保存
+    best_model.save_model("crypto/models/best_catboost_model.cbm")
 
-# 学習曲線の描画
-plt.figure(figsize=(10, 6))
-plt.plot(history.evals_result_['learn']['RMSE'], label='Train')
-plt.plot(history.evals_result_['validation']['RMSE'], label='Validation')
-plt.xlabel('Iterations')
-plt.ylabel('RMSE')
-plt.title('CatBoost Learning Curve')
-plt.legend()
-plt.grid(True)
-plt.savefig("crypto/fig/CatBoost_Learning_Curve.png")
+    # 設定をJSONファイルとして保存
+    config = {
+        "sequence_length": best_sequence_length,
+        "batch_size": best_batch_size
+    }
 
-# モデルの保存
-best_model.save_model("crypto/models/best_catboost_model.cbm")
+    with open("crypto/models/config.json", "w") as f:
+        json.dump(config, f)
 
-# 設定をJSONファイルとして保存
-config = {
-    "sequence_length": best_sequence_length,
-    "batch_size": best_batch_size
-}
+    # 特徴量の寄与率を計算
+    feature_importance = best_model.get_feature_importance()
+    feature_names = best_model.feature_names_
 
-with open("crypto/models/config.json", "w") as f:
-    json.dump(config, f)
+    # 特徴量の寄与率を降順にソート
+    sorted_idx = np.argsort(feature_importance)
+    sorted_features = [feature_names[i] for i in sorted_idx]
+    sorted_importance = feature_importance[sorted_idx]
 
-# 特徴量の寄与率を計算
-feature_importance = best_model.get_feature_importance()
-feature_names = best_model.feature_names_
+    # 上位20個の特徴量の寄与率をプロット
+    plt.figure(figsize=(10, 8))
+    plt.barh(range(20), sorted_importance[-20:])
+    plt.yticks(range(20), sorted_features[-20:])
+    plt.xlabel('Feature Importance')
+    plt.title('Top 20 Most Important Features')
+    plt.tight_layout()
+    plt.savefig('crypto/fig/feature_importance.png')
+    plt.close()
 
-# 特徴量の寄与率を降順にソート
-sorted_idx = np.argsort(feature_importance)
-sorted_features = [feature_names[i] for i in sorted_idx]
-sorted_importance = feature_importance[sorted_idx]
+    # 特徴量の寄与率を表示
+    print("\nFeature Importance:")
+    for feature, importance in zip(sorted_features[-20:], sorted_importance[-20:]):
+        print(f"{feature}: {importance:.4f}")
+        
+    test(filename)
 
-# 上位20個の特徴量の寄与率をプロット
-plt.figure(figsize=(10, 8))
-plt.barh(range(20), sorted_importance[-20:])
-plt.yticks(range(20), sorted_features[-20:])
-plt.xlabel('Feature Importance')
-plt.title('Top 20 Most Important Features')
-plt.tight_layout()
-plt.savefig('crypto/fig/feature_importance.png')
-plt.close()
-
-# 特徴量の寄与率を表示
-print("\nFeature Importance:")
-for feature, importance in zip(sorted_features[-20:], sorted_importance[-20:]):
-    print(f"{feature}: {importance:.4f}")
-    
-test()
+if __name__ == "__main__":
+    cat_train()
